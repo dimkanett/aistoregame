@@ -1,71 +1,67 @@
-import { MARKET_SEGMENTS, MARKETING_EFFECTS, STORE_PROFILES } from './constants';
-import { cloneBaseCategories, totalStock } from './calculations';
-import { createCompetitors } from './competitors';
-import { GameState, StoreEntity, StoreType } from './types';
+import { GameState } from './types'; // Импортируем тип состояния игры.
 
-const createPlayerStore = (type: StoreType): StoreEntity => {
-  const profile = STORE_PROFILES[type];
-  const categories = cloneBaseCategories();
-
-  return {
-    id: 'player',
-    name: 'Ваш магазин',
-    type,
-    cash: profile.startCash,
-    categories,
-    marketingMode: 'Без рекламы',
-    profile,
-    staff: {
-      headcount: profile.defaultStaff,
-      averageSalary: 52_000,
-      serviceLevel: profile.serviceLevel,
-      workload: 0.85,
-      churn: 0.08,
-      trainingLevel: 0.15
-    },
-    reputation: profile.reputation,
-    serviceLevel: profile.serviceLevel,
-    expenses: {
-      rent: profile.rent,
-      operating: profile.operatingCosts,
-      marketing: MARKETING_EFFECTS['Без рекламы'].cost,
-      payroll: profile.defaultStaff * 52_000,
-      penalties: 0
-    },
-    lastWeekStats: {
-      weeklyRevenue: 0,
-      weeklyProfit: 0,
-      marginPercent: 0,
-      traffic: profile.baseTraffic,
-      conversion: 0,
-      averageCheck: 0,
-      totalStock: totalStock(categories),
-      lostSales: 0,
-      reputation: profile.reputation
-    }
-  };
-};
-
-export const initialState: GameState = {
-  week: 1,
-  sessionStarted: false,
-  selectedStoreType: null,
-  player: null,
-  competitors: [],
-  market: {
-    weeklyCustomerPool: 10_000,
-    segments: MARKET_SEGMENTS,
-    currentEvents: [],
-    marketPriceIndex: {}
-  },
-  eventLog: []
-};
-
-export const buildSessionState = (type: StoreType): GameState => ({
-  ...initialState,
-  sessionStarted: true,
-  selectedStoreType: type,
-  player: createPlayerStore(type),
-  competitors: createCompetitors(),
-  eventLog: [`Старт сессии: выбран формат «${type}».`]
-});
+export const initialState: GameState = { // Создаём начальное состояние игры.
+  week: 1, // Стартуем с первой недели.
+  cash: 750000, // Устанавливаем стартовый капитал.
+  categories: [ // Задаём стартовый ассортимент по категориям.
+    { // Описываем категорию «Посуда».
+      id: 'tableware', // Технический ID категории.
+      name: 'Посуда', // Название категории для интерфейса.
+      stock: 120, // Стартовый остаток единиц товара.
+      purchasePrice: 520, // Закупочная цена за единицу.
+      retailPrice: 980, // Розничная цена за единицу.
+      demand: 68, // Базовый индекс спроса.
+      margin: 46.94 // Стартовое значение маржи.
+    }, // Завершаем объект категории «Посуда».
+    { // Описываем категорию «Текстиль».
+      id: 'textile', // Технический ID категории.
+      name: 'Текстиль', // Название категории для интерфейса.
+      stock: 95, // Стартовый остаток единиц товара.
+      purchasePrice: 690, // Закупочная цена за единицу.
+      retailPrice: 1240, // Розничная цена за единицу.
+      demand: 54, // Базовый индекс спроса.
+      margin: 44.35 // Стартовое значение маржи.
+    }, // Завершаем объект категории «Текстиль».
+    { // Описываем категорию «Декор».
+      id: 'decor', // Технический ID категории.
+      name: 'Декор', // Название категории для интерфейса.
+      stock: 140, // Стартовый остаток единиц товара.
+      purchasePrice: 380, // Закупочная цена за единицу.
+      retailPrice: 790, // Розничная цена за единицу.
+      demand: 72, // Базовый индекс спроса.
+      margin: 51.9 // Стартовое значение маржи.
+    }, // Завершаем объект категории «Декор».
+    { // Описываем категорию «Бытовая химия».
+      id: 'household', // Технический ID категории.
+      name: 'Бытовая химия', // Название категории для интерфейса.
+      stock: 160, // Стартовый остаток единиц товара.
+      purchasePrice: 180, // Закупочная цена за единицу.
+      retailPrice: 360, // Розничная цена за единицу.
+      demand: 85, // Базовый индекс спроса.
+      margin: 50 // Стартовое значение маржи.
+    }, // Завершаем объект категории «Бытовая химия».
+    { // Описываем категорию «Сезонные товары».
+      id: 'seasonal', // Технический ID категории.
+      name: 'Сезонные товары', // Название категории для интерфейса.
+      stock: 80, // Стартовый остаток единиц товара.
+      purchasePrice: 430, // Закупочная цена за единицу.
+      retailPrice: 940, // Розничная цена за единицу.
+      demand: 48, // Базовый индекс спроса.
+      margin: 54.26 // Стартовое значение маржи.
+    } // Завершаем объект категории «Сезонные товары».
+  ], // Завершаем массив категорий.
+  expenses: { // Описываем фиксированные расходы за неделю.
+    rent: 120000, // Аренда.
+    salary: 170000, // Зарплата.
+    marketing: 60000 // Маркетинг.
+  }, // Завершаем объект расходов.
+  stats: { // Задаём стартовые KPI до первой симуляции.
+    weeklyRevenue: 0, // Выручка на старте равна нулю.
+    weeklyProfit: 0, // Прибыль на старте равна нулю.
+    marginPercent: 0, // Маржа на старте равна нулю.
+    traffic: 0, // Трафик на старте равен нулю.
+    conversion: 0, // Конверсия на старте равна нулю.
+    averageCheck: 0, // Средний чек на старте равен нулю.
+    totalStock: 595 // Суммарный остаток всех категорий.
+  } // Завершаем объект статистики.
+}; // Завершаем начальное состояние.

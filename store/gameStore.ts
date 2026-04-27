@@ -1,167 +1,71 @@
-'use client';
+'use client'; // Помечаем модуль как клиентский для Next.js App Router.
 
-import { create } from 'zustand';
-import { MARKETING_EFFECTS } from '@/game/constants';
-import { calculateCategoryMargin, clamp, totalStock, withMargins } from '@/game/calculations';
-import { buildSessionState, initialState } from '@/game/initialState';
-import { runWeeklyCycle } from '@/game/simulationEngine';
-import { GameState, MarketingMode, StoreType } from '@/game/types';
+import { create } from 'zustand'; // Импортируем функцию создания Zustand-store.
+import { runWeeklySimulation, recalculateMargins } from '@/game/calculations'; // Импортируем функции бизнес-логики.
+import { initialState } from '@/game/initialState'; // Импортируем стартовое состояние игры.
+import { CategoryState, GameState } from '@/game/types'; // Импортируем типы состояния.
 
-interface GameStore extends GameState {
-  startSession: (storeType: StoreType) => void;
-  updateRetailPrice: (categoryId: string, price: number) => void;
-  orderStock: (categoryId: string, quantity: number) => void;
-  setMarketingMode: (mode: MarketingMode) => void;
-  hireEmployee: () => void;
-  fireEmployee: () => void;
-  setSalary: (salary: number) => void;
-  investInTraining: () => void;
-  nextWeek: () => void;
-  resetGame: () => void;
-}
+interface GameStore extends GameState { // Описываем полный интерфейс Zustand-store.
+  updateRetailPrice: (categoryId: string, price: number) => void; // Метод изменения розничной цены.
+  orderStock: (categoryId: string, quantity: number) => void; // Метод дозаказа товара.
+  nextWeek: () => void; // Метод перехода на следующую неделю.
+  resetGame: () => void; // Метод сброса игры к начальному состоянию.
+} // Завершаем интерфейс GameStore.
 
-export const useGameStore = create<GameStore>((set) => ({
-  ...initialState,
-  startSession: (storeType) => set(() => buildSessionState(storeType)),
-  updateRetailPrice: (categoryId, price) => {
-    set((state) => {
-      if (!state.player) return state;
+export const useGameStore = create<GameStore>((set) => ({ // Создаём Zustand-hook для доступа к состоянию.
+  ...initialState, // Инициализируем store стартовыми данными.
+  updateRetailPrice: (categoryId, price) => { // Реализуем обновление розничной цены.
+    set((state) => { // Обновляем состояние через функцию-производитель.
+      const categories = recalculateMargins( // Получаем новый список категорий с пересчётом маржи.
+        state.categories.map((category) => // Проходим по каждой категории.
+          category.id === categoryId // Проверяем нужную категорию.
+            ? { // Если категория совпала, создаём её обновлённую версию.
+                ...category, // Копируем старые поля категории.
+                retailPrice: Math.max(1, Math.round(price)) // Сохраняем новую цену не ниже 1.
+              } // Завершаем обновлённый объект категории.
+            : category // Иначе возвращаем категорию без изменений.
+        ) // Завершаем map.
+      ); // Завершаем пересчёт маржи.
 
-      const categories = withMargins(
-        state.player.categories.map((category) => {
-          if (category.id !== categoryId) return category;
+      return { categories }; // Возвращаем частичное обновление state.
+    }); // Завершаем вызов set.
+  }, // Завершаем метод updateRetailPrice.
+  orderStock: (categoryId, quantity) => { // Реализуем дозаказ товара.
+    set((state) => { // Обновляем состояние через функцию-производитель.
+      const safeQuantity = Math.max(0, Math.round(quantity)); // Нормализуем количество заказа.
+      if (safeQuantity === 0) { // Проверяем, что заказ не пустой.
+        return state; // Если пустой — ничего не меняем.
+      } // Завершаем проверку пустого заказа.
 
-          const minPrice = Math.round(category.purchasePrice * 1.05);
-          const nextPrice = Math.max(minPrice, Math.round(price));
-          return { ...category, retailPrice: nextPrice, margin: calculateCategoryMargin({ ...category, retailPrice: nextPrice }) };
-        })
-      );
+      const category = state.categories.find((item) => item.id === categoryId); // Находим нужную категорию.
+      if (!category) { // Проверяем, что категория существует.
+        return state; // Если нет — ничего не меняем.
+      } // Завершаем проверку категории.
 
-      return {
-        player: {
-          ...state.player,
-          categories,
-          lastWeekStats: {
-            ...state.player.lastWeekStats,
-            totalStock: totalStock(categories)
-          }
-        }
-      };
-    });
-  },
-  orderStock: (categoryId, quantity) => {
-    set((state) => {
-      if (!state.player) return state;
+      const cost = category.purchasePrice * safeQuantity; // Считаем стоимость дозаказа.
+      if (cost > state.cash) { // Проверяем, хватает ли денег.
+        return state; // Если денег не хватает — не выполняем заказ.
+      } // Завершаем проверку бюджета.
 
-      const safeQuantity = Math.max(0, Math.round(quantity));
-      if (safeQuantity === 0) return state;
+      const categories: CategoryState[] = state.categories.map((item) => // Формируем обновлённый список категорий.
+        item.id === categoryId ? { ...item, stock: item.stock + safeQuantity } : item // Увеличиваем stock только у нужной категории.
+      ); // Завершаем map категорий.
+      const totalStock = categories.reduce((sum, item) => sum + item.stock, 0); // Пересчитываем общий остаток.
 
-      const target = state.player.categories.find((item) => item.id === categoryId);
-      if (!target) return state;
-
-      const cost = target.purchasePrice * safeQuantity;
-      if (cost > state.player.cash) return state;
-
-      const categories = state.player.categories.map((item) =>
-        item.id === categoryId ? { ...item, stock: item.stock + safeQuantity } : item
-      );
-
-      return {
-        player: {
-          ...state.player,
-          cash: state.player.cash - cost,
-          categories,
-          lastWeekStats: {
-            ...state.player.lastWeekStats,
-            totalStock: totalStock(categories)
-          }
-        }
-      };
-    });
-  },
-  setMarketingMode: (mode) => {
-    set((state) => {
-      if (!state.player) return state;
-
-      return {
-        player: {
-          ...state.player,
-          marketingMode: mode,
-          expenses: {
-            ...state.player.expenses,
-            marketing: MARKETING_EFFECTS[mode].cost
-          }
-        }
-      };
-    });
-  },
-  hireEmployee: () => {
-    set((state) => {
-      if (!state.player) return state;
-      return {
-        player: {
-          ...state.player,
-          staff: {
-            ...state.player.staff,
-            headcount: state.player.staff.headcount + 1,
-            workload: clamp(state.player.staff.workload * 0.96, 0.35, 1.4)
-          }
-        }
-      };
-    });
-  },
-  fireEmployee: () => {
-    set((state) => {
-      if (!state.player) return state;
-      return {
-        player: {
-          ...state.player,
-          staff: {
-            ...state.player.staff,
-            headcount: Math.max(1, state.player.staff.headcount - 1),
-            workload: clamp(state.player.staff.workload * 1.06, 0.35, 1.4)
-          }
-        }
-      };
-    });
-  },
-  setSalary: (salary) => {
-    set((state) => {
-      if (!state.player) return state;
-      return {
-        player: {
-          ...state.player,
-          staff: {
-            ...state.player.staff,
-            averageSalary: clamp(Math.round(salary), 30_000, 120_000)
-          }
-        }
-      };
-    });
-  },
-  investInTraining: () => {
-    set((state) => {
-      if (!state.player) return state;
-      const cost = 60_000;
-      if (state.player.cash < cost) return state;
-
-      return {
-        player: {
-          ...state.player,
-          cash: state.player.cash - cost,
-          staff: {
-            ...state.player.staff,
-            trainingLevel: clamp(state.player.staff.trainingLevel + 0.08, 0, 1)
-          }
-        },
-        eventLog: [`Неделя ${state.week}: проведено обучение персонала (-60 000 ₽).`, ...state.eventLog].slice(0, 20)
-      };
-    });
-  },
-  nextWeek: () => {
-    set((state) => runWeeklyCycle(state));
-  },
-  resetGame: () => {
-    set(initialState);
-  }
-}));
+      return { // Возвращаем обновлённые поля состояния.
+        cash: state.cash - cost, // Уменьшаем деньги на стоимость дозаказа.
+        categories, // Обновляем категории.
+        stats: { // Частично обновляем блок статистики.
+          ...state.stats, // Копируем предыдущие KPI.
+          totalStock // Записываем новый общий остаток.
+        } // Завершаем объект stats.
+      }; // Завершаем возвращаемый объект.
+    }); // Завершаем вызов set.
+  }, // Завершаем метод orderStock.
+  nextWeek: () => { // Реализуем переход на следующую неделю.
+    set((state) => runWeeklySimulation(state)); // Вызываем недельную симуляцию и сохраняем результат.
+  }, // Завершаем метод nextWeek.
+  resetGame: () => { // Реализуем полный сброс игры.
+    set(initialState); // Возвращаем store к начальному состоянию.
+  } // Завершаем метод resetGame.
+})); // Завершаем создание Zustand-store.
