@@ -1,40 +1,141 @@
-export type CategoryName = // Объявляем тип названий категорий товара.
-  | 'Посуда' // Разрешаем значение «Посуда».
-  | 'Текстиль' // Разрешаем значение «Текстиль».
-  | 'Декор' // Разрешаем значение «Декор».
-  | 'Бытовая химия' // Разрешаем значение «Бытовая химия».
-  | 'Сезонные товары'; // Разрешаем значение «Сезонные товары».
+export type StoreType =
+  | 'Бутик в центре'
+  | 'Хард-дискаунтер на окраине'
+  | 'Магазин среднего ценового сегмента'
+  | 'Интернет-магазин с точками выдачи';
 
-export interface CategoryState { // Описываем структуру состояния одной категории.
-  id: string; // Уникальный технический идентификатор категории.
-  name: CategoryName; // Человеко-читаемое имя категории.
-  stock: number; // Текущий остаток товара на складе.
-  purchasePrice: number; // Закупочная цена за единицу товара.
-  retailPrice: number; // Розничная цена продажи за единицу товара.
-  demand: number; // Базовый индекс спроса категории.
-  margin: number; // Текущая маржа категории в процентах.
-} // Завершаем интерфейс CategoryState.
+export type MarketingMode =
+  | 'Без рекламы'
+  | 'Локальная реклама'
+  | 'Скидочная кампания'
+  | 'Онлайн-реклама'
+  | 'Имиджевая кампания';
 
-export interface WeeklyStats { // Описываем набор KPI-метрик за неделю.
-  weeklyRevenue: number; // Выручка за неделю.
-  weeklyProfit: number; // Прибыль за неделю.
-  marginPercent: number; // Валовая маржа в процентах.
-  traffic: number; // Трафик посетителей за неделю.
-  conversion: number; // Конверсия посетителей в покупки.
-  averageCheck: number; // Средний чек за неделю.
-  totalStock: number; // Общий остаток всех товаров.
-} // Завершаем интерфейс WeeklyStats.
+export type SegmentName = 'Центр' | 'Спальные районы' | 'Онлайн-аудитория' | 'Эконом-сегмент';
 
-export interface ExpenseState { // Описываем постоянные еженедельные расходы.
-  rent: number; // Расходы на аренду.
-  salary: number; // Расходы на зарплаты.
-  marketing: number; // Расходы на маркетинг.
-} // Завершаем интерфейс ExpenseState.
+export type CategoryName =
+  | 'Посуда'
+  | 'Текстиль'
+  | 'Декор'
+  | 'Бытовая химия'
+  | 'Товары для кухни'
+  | 'Подарки';
 
-export interface GameState { // Описываем полное состояние игры.
-  week: number; // Текущий номер игровой недели.
-  cash: number; // Деньги на счёте.
-  categories: CategoryState[]; // Список всех товарных категорий.
-  expenses: ExpenseState; // Блок постоянных расходов.
-  stats: WeeklyStats; // Блок KPI-метрик за последнюю неделю.
-} // Завершаем интерфейс GameState.
+export interface CategoryState {
+  id: string;
+  name: CategoryName;
+  stock: number;
+  purchasePrice: number;
+  retailPrice: number;
+  baseMarketPrice: number;
+  baseDemand: number;
+  elasticity: number;
+  seasonalFactor: number;
+  margin: number;
+}
+
+export interface StoreProfile {
+  type: StoreType;
+  startCash: number;
+  rent: number;
+  baseTraffic: number;
+  priceSensitivity: number;
+  marketingDependency: number;
+  serviceLevel: number;
+  locationPower: number;
+  reputation: number;
+  operatingCosts: number;
+  defaultStaff: number;
+}
+
+export interface StaffState {
+  headcount: number;
+  averageSalary: number;
+  serviceLevel: number;
+  workload: number;
+  churn: number;
+  trainingLevel: number;
+}
+
+export interface MarketingEffect {
+  cost: number;
+  trafficBoost: number;
+  reputationImpact: number;
+  priceTolerance: number;
+  byStoreTypeMultiplier: Partial<Record<StoreType, number>>;
+}
+
+export interface ExpenseState {
+  rent: number;
+  operating: number;
+  marketing: number;
+  payroll: number;
+  penalties: number;
+}
+
+export interface WeeklyStats {
+  weeklyRevenue: number;
+  weeklyProfit: number;
+  marginPercent: number;
+  traffic: number;
+  conversion: number;
+  averageCheck: number;
+  totalStock: number;
+  lostSales: number;
+  reputation: number;
+}
+
+export interface SegmentState {
+  name: SegmentName;
+  size: number;
+  priceSensitivity: number;
+  serviceSensitivity: number;
+  reputationSensitivity: number;
+  onlineAffinity: number;
+}
+
+export interface StoreEntity {
+  id: string;
+  name: string;
+  type: StoreType;
+  cash: number;
+  categories: CategoryState[];
+  marketingMode: MarketingMode;
+  profile: StoreProfile;
+  staff: StaffState;
+  reputation: number;
+  serviceLevel: number;
+  expenses: ExpenseState;
+  lastWeekStats: WeeklyStats;
+}
+
+export interface MarketEvent {
+  id: string;
+  title: string;
+  description: string;
+  durationWeeks: number;
+  effects: {
+    maxMarginCap?: number;
+    taxMultiplier?: number;
+    discountAdPenalty?: number;
+    importCostMultiplier?: number;
+    complianceCost?: number;
+  };
+}
+
+export interface MarketState {
+  weeklyCustomerPool: number;
+  segments: SegmentState[];
+  currentEvents: MarketEvent[];
+  marketPriceIndex: Record<string, number>;
+}
+
+export interface GameState {
+  week: number;
+  sessionStarted: boolean;
+  selectedStoreType: StoreType | null;
+  player: StoreEntity | null;
+  competitors: StoreEntity[];
+  market: MarketState;
+  eventLog: string[];
+}

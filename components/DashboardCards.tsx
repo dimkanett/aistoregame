@@ -1,38 +1,45 @@
-'use client'; // Помечаем компонент как клиентский, потому что он читает Zustand-store.
+'use client';
 
-import { useGameStore } from '@/store/gameStore'; // Импортируем хук доступа к состоянию игры.
+import { useGameStore } from '@/store/gameStore';
 
-const formatCurrency = (value: number): string => // Создаём функцию форматирования денег.
-  new Intl.NumberFormat('ru-RU', { // Используем русскую локаль форматирования чисел.
-    style: 'currency', // Указываем формат как денежный.
-    currency: 'RUB', // Указываем валюту рубли.
-    maximumFractionDigits: 0 // Убираем копейки для компактного интерфейса.
-  }).format(value); // Форматируем входное число.
+const formatCurrency = (value: number): string =>
+  new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    maximumFractionDigits: 0
+  }).format(value);
 
-const formatPercent = (value: number): string => `${value.toFixed(2)}%`; // Форматируем число как процент с двумя знаками.
+const formatPercent = (value: number): string => `${value.toFixed(2)}%`;
 
-export function DashboardCards() { // Создаём компонент с карточками KPI.
-  const { cash, stats } = useGameStore(); // Получаем деньги и недельные метрики из store.
+export function DashboardCards() {
+  const player = useGameStore((state) => state.player);
 
-  const cards = [ // Формируем список карточек для отображения.
-    { label: 'Деньги на счёте', value: formatCurrency(cash) }, // Карточка текущего баланса.
-    { label: 'Выручка недели', value: formatCurrency(stats.weeklyRevenue) }, // Карточка выручки.
-    { label: 'Прибыль недели', value: formatCurrency(stats.weeklyProfit) }, // Карточка прибыли.
-    { label: 'Маржа', value: formatPercent(stats.marginPercent) }, // Карточка маржи.
-    { label: 'Трафик', value: `${stats.traffic} чел.` }, // Карточка трафика.
-    { label: 'Конверсия', value: formatPercent(stats.conversion) }, // Карточка конверсии.
-    { label: 'Средний чек', value: formatCurrency(stats.averageCheck) }, // Карточка среднего чека.
-    { label: 'Остатки', value: `${stats.totalStock} шт.` } // Карточка суммарного остатка.
-  ]; // Завершаем массив карточек.
+  if (!player) {
+    return null;
+  }
 
-  return ( // Возвращаем JSX-разметку.
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"> {/* Создаём адаптивную сетку карточек. */}
-      {cards.map((card) => ( // Проходим по массиву карточек и рендерим каждую.
-        <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"> {/* Оформляем карточку KPI. */}
-          <p className="text-sm text-slate-500">{card.label}</p> {/* Выводим подпись метрики. */}
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{card.value}</p> {/* Выводим значение метрики. */}
-        </div> // Закрываем карточку.
-      ))} {/* Завершаем map карточек. */}
-    </section> // Закрываем секцию KPI.
-  ); // Завершаем return.
-} // Завершаем компонент DashboardCards.
+  const stats = player.lastWeekStats;
+  const cards = [
+    { label: 'Деньги на счёте', value: formatCurrency(player.cash) },
+    { label: 'Выручка недели', value: formatCurrency(stats.weeklyRevenue) },
+    { label: 'Прибыль недели', value: formatCurrency(stats.weeklyProfit) },
+    { label: 'Маржа', value: formatPercent(stats.marginPercent) },
+    { label: 'Трафик', value: `${stats.traffic} чел.` },
+    { label: 'Конверсия', value: formatPercent(stats.conversion) },
+    { label: 'Средний чек', value: formatCurrency(stats.averageCheck) },
+    { label: 'Остатки', value: `${stats.totalStock} шт.` },
+    { label: 'Потерянные продажи', value: `${stats.lostSales} шт.` },
+    { label: 'Репутация', value: `${stats.reputation.toFixed(1)} / 100` }
+  ];
+
+  return (
+    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {cards.map((card) => (
+        <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-sm text-slate-500">{card.label}</p>
+          <p className="mt-2 text-xl font-semibold text-slate-900">{card.value}</p>
+        </div>
+      ))}
+    </section>
+  );
+}
