@@ -1,15 +1,16 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { averageMargin } from '@/game/calculations';
+import { averageMargin, totalDebt } from '@/game/calculations';
+import { MARKETING_ACTIVITIES } from '@/game/constants';
 import { useGameStore } from '@/store/gameStore';
 
 const formatCurrency = (value: number): string =>
   new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(value);
 
-type CompetitorTab = 'Ценообразование' | 'Маркетинг' | 'Операционные показатели' | 'Персонал';
+type CompetitorTab = 'Ценообразование' | 'Маркетинг' | 'Операционные показатели' | 'Персонал' | 'Финансы' | 'Стратегия';
 
-const tabs: CompetitorTab[] = ['Ценообразование', 'Маркетинг', 'Операционные показатели', 'Персонал'];
+const tabs: CompetitorTab[] = ['Ценообразование', 'Маркетинг', 'Операционные показатели', 'Персонал', 'Финансы', 'Стратегия'];
 
 export function CompetitorsPanel() {
   const competitors = useGameStore((state) => state.competitors);
@@ -34,9 +35,7 @@ export function CompetitorsPanel() {
           <button
             key={item.id}
             type="button"
-            className={`rounded-md px-3 py-1 text-sm ${
-              item.id === competitor.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'
-            }`}
+            className={`rounded-md px-3 py-1 text-sm ${item.id === competitor.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}
             onClick={() => setActiveCompetitor(item.id)}
           >
             {item.name}
@@ -49,9 +48,7 @@ export function CompetitorsPanel() {
           <button
             key={tab}
             type="button"
-            className={`rounded-md px-3 py-1 text-sm ${
-              tab === activeTab ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
-            }`}
+            className={`rounded-md px-3 py-1 text-sm ${tab === activeTab ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'}`}
             onClick={() => setActiveTab(tab)}
           >
             {tab}
@@ -61,9 +58,7 @@ export function CompetitorsPanel() {
 
       {activeTab === 'Ценообразование' && (
         <div className="mt-4 space-y-2 text-sm">
-          <p className="text-slate-600">
-            Оценочная маржа: <span className="font-medium text-slate-900">{averageMargin(competitor.categories).toFixed(2)}%</span>
-          </p>
+          <p className="text-slate-600">Оценочная маржа: <span className="font-medium text-slate-900">{averageMargin(competitor.categories).toFixed(2)}%</span></p>
           {competitor.categories.map((category) => {
             const market = marketIndex[category.id] ?? category.baseMarketPrice;
             const position = ((category.retailPrice / market - 1) * 100).toFixed(1);
@@ -79,7 +74,10 @@ export function CompetitorsPanel() {
 
       {activeTab === 'Маркетинг' && (
         <div className="mt-4 space-y-2 text-sm">
-          <p>Текущая стратегия: <span className="font-medium">{competitor.marketingMode}</span></p>
+          {competitor.activeMarketingActivities.filter((activity) => activity.enabled).map((state) => {
+            const activity = MARKETING_ACTIVITIES.find((item) => item.id === state.activityId);
+            return <p key={state.activityId}>Активность: <span className="font-medium">{activity?.name ?? state.activityId}</span> · недель: {state.weeksActive}</p>;
+          })}
           <p>Расходы: <span className="font-medium">{formatCurrency(competitor.expenses.marketing)}</span></p>
           <p className="text-slate-600">Видимая активность: {competitor.lastWeekStats.traffic > 2200 ? 'Высокая' : 'Умеренная'}</p>
         </div>
@@ -88,7 +86,7 @@ export function CompetitorsPanel() {
       {activeTab === 'Операционные показатели' && (
         <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
           <div className="rounded-md bg-slate-50 p-3">Примерная выручка: {formatCurrency(competitor.lastWeekStats.weeklyRevenue)}</div>
-          <div className="rounded-md bg-slate-50 p-3">Примерная прибыль: {formatCurrency(competitor.lastWeekStats.weeklyProfit)}</div>
+          <div className="rounded-md bg-slate-50 p-3">Примерная прибыль: {formatCurrency(competitor.lastWeekStats.netProfit)}</div>
           <div className="rounded-md bg-slate-50 p-3">Трафик: {competitor.lastWeekStats.traffic} чел.</div>
           <div className="rounded-md bg-slate-50 p-3">Конверсия: {competitor.lastWeekStats.conversion.toFixed(2)}%</div>
           <div className="rounded-md bg-slate-50 p-3">Средний чек: {formatCurrency(competitor.lastWeekStats.averageCheck)}</div>
@@ -102,6 +100,25 @@ export function CompetitorsPanel() {
           <div className="rounded-md bg-slate-50 p-3">Сервис: {(competitor.staff.serviceLevel * 100).toFixed(0)}%</div>
           <div className="rounded-md bg-slate-50 p-3">ФОТ: {formatCurrency(competitor.expenses.payroll)}</div>
           <div className="rounded-md bg-slate-50 p-3">Нагрузка: {(competitor.staff.workload * 100).toFixed(0)}%</div>
+        </div>
+      )}
+
+      {activeTab === 'Финансы' && (
+        <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+          <div className="rounded-md bg-slate-50 p-3">Деньги: {formatCurrency(competitor.cash)}</div>
+          <div className="rounded-md bg-slate-50 p-3">Финансовое здоровье: {competitor.financialHealth}</div>
+          <div className="rounded-md bg-slate-50 p-3">Лояльность: {competitor.customerLoyalty.toFixed(1)} / 100</div>
+          <div className="rounded-md bg-slate-50 p-3">Долг: {formatCurrency(totalDebt(competitor))}</div>
+          <div className="rounded-md bg-slate-50 p-3">Риск ухода с рынка: {competitor.financialHealth === 'bankrupt' || competitor.lossStreak >= 5 ? 'высокий' : 'умеренный'}</div>
+        </div>
+      )}
+
+      {activeTab === 'Стратегия' && (
+        <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+          <div className="rounded-md bg-slate-50 p-3">Стратегия: {competitor.competitorStrategy}</div>
+          <div className="rounded-md bg-slate-50 p-3">Серия убытков: {competitor.lossStreak} недель</div>
+          <div className="rounded-md bg-slate-50 p-3">Доля рынка: {competitor.marketShare.toFixed(2)}%</div>
+          <div className="rounded-md bg-slate-50 p-3">Кредитный рейтинг: {competitor.creditScore}/100</div>
         </div>
       )}
     </section>

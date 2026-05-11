@@ -1,15 +1,23 @@
 'use client';
 
+import { ReactNode, useState } from 'react';
+import { AnalyticsPanel } from '@/components/AnalyticsPanel';
 import { AssortmentTable } from '@/components/AssortmentTable';
+import { BanksPanel } from '@/components/BanksPanel';
 import { CompetitorsPanel } from '@/components/CompetitorsPanel';
-import { DashboardCards } from '@/components/DashboardCards';
+import { DashboardTab } from '@/components/DashboardTab';
+import { GameTabs } from '@/components/GameTabs';
 import { MarketingPanel } from '@/components/MarketingPanel';
 import { MarketEventsPanel } from '@/components/MarketEventsPanel';
+import { MarketPanel } from '@/components/MarketPanel';
 import { StaffPanel } from '@/components/StaffPanel';
 import { StartScreen } from '@/components/StartScreen';
+import { StorePanel } from '@/components/StorePanel';
+import { GameTab } from '@/game/types';
 import { useGameStore } from '@/store/gameStore';
 
 export default function HomePage() {
+  const [activeTab, setActiveTab] = useState<GameTab>('dashboard');
   const week = useGameStore((state) => state.week);
   const sessionStarted = useGameStore((state) => state.sessionStarted);
   const player = useGameStore((state) => state.player);
@@ -23,6 +31,19 @@ export default function HomePage() {
       </main>
     );
   }
+
+  const tabContent: Record<GameTab, ReactNode> = {
+    dashboard: <DashboardTab />,
+    store: <StorePanel />,
+    assortment: <AssortmentTable />,
+    marketing: <MarketingPanel />,
+    staff: <StaffPanel />,
+    competitors: <CompetitorsPanel />,
+    banks: <BanksPanel />,
+    market: <MarketPanel />,
+    events: <MarketEventsPanel />,
+    analytics: <AnalyticsPanel />
+  };
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-8">
@@ -49,12 +70,8 @@ export default function HomePage() {
         </div>
       </header>
 
-      <DashboardCards />
-      <MarketingPanel />
-      <StaffPanel />
-      <AssortmentTable />
-      <MarketEventsPanel />
-      <CompetitorsPanel />
+      <GameTabs activeTab={activeTab} onChange={setActiveTab} />
+      {tabContent[activeTab]}
     </main>
   );
 }

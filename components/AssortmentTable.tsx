@@ -4,24 +4,26 @@ import { useMemo, useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
 
 const formatCurrency = (value: number): string =>
-  new Intl.NumberFormat('ru-RU', {
-    style: 'currency',
-    currency: 'RUB',
-    maximumFractionDigits: 0
-  }).format(value);
+  new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(value);
 
 const demandByPrice = (retailPrice: number, marketPrice: number, elasticity: number): number => {
   const priceIndex = retailPrice / marketPrice;
 
-  if (priceIndex > 1) {
-    return Math.max(35, Math.round(100 - (priceIndex - 1) * elasticity * 100));
-  }
-
+  if (priceIndex > 1) return Math.max(35, Math.round(100 - (priceIndex - 1) * elasticity * 100));
   return Math.min(145, Math.round(100 + (1 - priceIndex) * elasticity * 70));
+};
+
+const stockStatus = (stock: number, sales: number): string => {
+  const coverage = sales > 0 ? stock / sales : stock > 120 ? 8 : 4;
+  if (coverage < 1.5) return 'риск out-of-stock';
+  if (coverage > 8) return 'перелив склада';
+  if (sales === 0 && stock > 80) return 'неликвид';
+  return 'нормально';
 };
 
 export function AssortmentTable() {
   const player = useGameStore((state) => state.player);
+  const marketIndex = useGameStore((state) => state.market.marketPriceIndex);
   const updateRetailPrice = useGameStore((state) => state.updateRetailPrice);
   const orderStock = useGameStore((state) => state.orderStock);
 
@@ -31,19 +33,18 @@ export function AssortmentTable() {
     if (!player) return {};
 
     return player.categories.reduce<Record<string, number>>((acc, category) => {
-      acc[category.id] = demandByPrice(category.retailPrice, category.baseMarketPrice, category.elasticity);
+      const market = marketIndex[category.id] ?? category.baseMarketPrice;
+      acc[category.id] = demandByPrice(category.retailPrice, market, category.elasticity);
       return acc;
     }, {});
-  }, [player]);
+  }, [marketIndex, player]);
 
-  if (!player) {
-    return null;
-  }
+  if (!player) return null;
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-lg font-semibold">Ассортимент</h2>
+        <h2 className="text-lg font-semibold">Ассортимент / товары</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -54,61 +55,75 @@ export function AssortmentTable() {
               <th className="px-3 py-2 text-left font-medium text-slate-600">Закупка</th>
               <th className="px-3 py-2 text-left font-medium text-slate-600">Розница</th>
               <th className="px-3 py-2 text-left font-medium text-slate-600">Рынок</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-600">Эластичность</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-600">Спрос (индекс)</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Индекс цены</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Спрос</th>
               <th className="px-3 py-2 text-left font-medium text-slate-600">Маржа</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Продажи</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Потери</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Покрытие</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Статус</th>
               <th className="px-3 py-2 text-left font-medium text-slate-600">Дозаказ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {player.categories.map((category) => (
-              <tr key={category.id}>
-                <td className="px-3 py-3 font-medium">{category.name}</td>
-                <td className="px-3 py-3">{category.stock} шт.</td>
-                <td className="px-3 py-3">{formatCurrency(category.purchasePrice)}</td>
-                <td className="px-3 py-3">
-                  <input
-                    type="number"
-                    className="w-28 rounded-md border border-slate-300 px-2 py-1"
-                    min={Math.round(category.purchasePrice * 1.05)}
-                    placeholder="Цена продажи"
-                    value={category.retailPrice}
-                    onChange={(event) => updateRetailPrice(category.id, Number(event.target.value))}
-                  />
-                </td>
-                <td className="px-3 py-3">{formatCurrency(category.baseMarketPrice)}</td>
-                <td className="px-3 py-3">{category.elasticity.toFixed(2)}</td>
-                <td className="px-3 py-3">{demandSnapshot[category.id] ?? 100}</td>
-                <td className="px-3 py-3">{category.margin.toFixed(2)}%</td>
-                <td className="px-3 py-3">
-                  <div className="flex items-center gap-2">
+            {player.categories.map((category) => {
+              const market = marketIndex[category.id] ?? category.baseMarketPrice;
+              const sales = player.categorySalesLastWeek[category.id] ?? 0;
+              const lost = player.categoryLostSalesLastWeek[category.id] ?? 0;
+              const coverage = sales > 0 ? category.stock / sales : 0;
+              return (
+                <tr key={category.id}>
+                  <td className="px-3 py-3 font-medium">{category.name}</td>
+                  <td className="px-3 py-3">{category.stock} шт.</td>
+                  <td className="px-3 py-3">{formatCurrency(category.purchasePrice)}</td>
+                  <td className="px-3 py-3">
                     <input
                       type="number"
-                      className="w-24 rounded-md border border-slate-300 px-2 py-1"
-                      min={0}
-                      placeholder="Кол-во"
-                      value={orderInputs[category.id] ?? 0}
-                      onChange={(event) =>
-                        setOrderInputs((prev) => ({
-                          ...prev,
-                          [category.id]: Math.max(0, Number(event.target.value))
-                        }))
-                      }
+                      className="w-28 rounded-md border border-slate-300 px-2 py-1"
+                      min={Math.round(category.purchasePrice * 1.05)}
+                      placeholder="Цена продажи"
+                      value={category.retailPrice}
+                      onChange={(event) => updateRetailPrice(category.id, Number(event.target.value))}
                     />
-                    <button
-                      type="button"
-                      className="rounded-md bg-slate-900 px-3 py-1 text-white hover:bg-slate-700"
-                      onClick={() => {
-                        orderStock(category.id, orderInputs[category.id] ?? 0);
-                        setOrderInputs((prev) => ({ ...prev, [category.id]: 0 }));
-                      }}
-                    >
-                      Заказать
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-3 py-3">{formatCurrency(market)}</td>
+                  <td className="px-3 py-3">{(category.retailPrice / market).toFixed(2)}</td>
+                  <td className="px-3 py-3">{demandSnapshot[category.id] ?? 100}</td>
+                  <td className="px-3 py-3">{category.margin.toFixed(2)}%</td>
+                  <td className="px-3 py-3">{sales} шт.</td>
+                  <td className="px-3 py-3">{lost} шт.</td>
+                  <td className="px-3 py-3">{sales > 0 ? coverage.toFixed(1) : '—'}</td>
+                  <td className="px-3 py-3">{stockStatus(category.stock, sales)}</td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        className="w-24 rounded-md border border-slate-300 px-2 py-1"
+                        min={0}
+                        placeholder="Кол-во"
+                        value={orderInputs[category.id] ?? 0}
+                        onChange={(event) =>
+                          setOrderInputs((prev) => ({
+                            ...prev,
+                            [category.id]: Math.max(0, Number(event.target.value))
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="rounded-md bg-slate-900 px-3 py-1 text-white hover:bg-slate-700"
+                        onClick={() => {
+                          orderStock(category.id, orderInputs[category.id] ?? 0);
+                          setOrderInputs((prev) => ({ ...prev, [category.id]: 0 }));
+                        }}
+                      >
+                        Заказать
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
