@@ -6,6 +6,7 @@ export type StoreType =
 
 export type GameTab =
   | 'dashboard'
+  | 'store_scene'
   | 'store'
   | 'assortment'
   | 'marketing'
@@ -48,6 +49,33 @@ export type PaymentTerms = 'prepayment' | 'on_delivery' | 'deferred_14' | 'defer
 export type SupplierPriceLevel = 'low' | 'medium' | 'high';
 export type PurchasePaymentStatus = 'unpaid' | 'paid' | 'overdue';
 export type PurchaseDeliveryStatus = 'pending' | 'delivered' | 'delayed' | 'cancelled';
+export type VisualEventSeverity = 'info' | 'warning' | 'danger' | 'success';
+export type VisualEventType =
+  | 'employee_hired'
+  | 'employee_left'
+  | 'candidate_revealed'
+  | 'customer_flow'
+  | 'purchase_success'
+  | 'purchase_failed_oos'
+  | 'delivery_arrived'
+  | 'delivery_delayed'
+  | 'auto_order_created'
+  | 'auto_order_failed'
+  | 'marketing_campaign_started'
+  | 'salary_delayed'
+  | 'loan_approved'
+  | 'competitor_closed';
+
+export interface VisualEvent {
+  id: string;
+  week: number;
+  type: VisualEventType;
+  title: string;
+  description: string;
+  entityId?: string;
+  severity: VisualEventSeverity;
+  payload?: Record<string, string | number | boolean | null>;
+}
 
 export interface CategoryState {
   id: string;
@@ -472,5 +500,6 @@ export interface GameState {
   suppliers: Supplier[];
   cityWorkers: Worker[];
   eventLog: string[];
+  visualEvents: VisualEvent[];
   lastLoanDecision: LoanApplicationResult | null;
 }

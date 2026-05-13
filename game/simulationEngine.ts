@@ -16,7 +16,7 @@ import { makeCompetitorDecisions } from './competitors';
 import { applyFinancialEventEffects, progressEvents, rollNewEvent } from './events';
 import { processJobRequests, updateEmployeeRetention } from './labor';
 import { processPurchaseOrders, skuStatus } from './suppliers';
-import { FinancialMarket, GameState, MarketEvent, ProductSegment, SegmentState, StoreEntity, StoreType, WeeklyHistoryEntry, WeeklyStats, Worker } from './types';
+import { FinancialMarket, GameState, MarketEvent, ProductSegment, SegmentState, StoreEntity, StoreType, VisualEvent, VisualEventSeverity, VisualEventType, WeeklyHistoryEntry, WeeklyStats, Worker } from './types';
 
 interface MarketingSummary {
   cost: number;
@@ -32,9 +32,35 @@ interface PerformanceResult {
   store: StoreEntity;
   traffic: number;
   allocatedCustomers: number;
+  events: string[];
 }
 
 const safeDiv = (num: number, den: number): number => (den === 0 ? 0 : num / den);
+
+const visualEventTypeFromMessage = (message: string): { type: VisualEventType; severity: VisualEventSeverity; title: string } => {
+  if (message.includes('поставлен товар') || message.includes('Поставка приехала')) return { type: 'delivery_arrived', severity: 'success', title: 'Поставка приехала' };
+  if (message.includes('задерж')) return { type: 'delivery_delayed', severity: 'warning', title: 'Поставка задерживается' };
+  if (message.includes('кандидат')) return { type: 'candidate_revealed', severity: 'info', title: 'Новые кандидаты' };
+  if (message.includes('ушёл')) return { type: 'employee_left', severity: 'warning', title: 'Сотрудник ушёл' };
+  if (message.includes('потерянные продажи') || message.includes('нехватки остатков')) return { type: 'purchase_failed_oos', severity: 'warning', title: 'Покупателям не хватило товара' };
+  if (message.includes('финансовое здоровье')) return { type: 'salary_delayed', severity: 'danger', title: 'Финансовое напряжение' };
+  return { type: 'customer_flow', severity: 'info', title: 'Событие недели' };
+};
+
+const createVisualEvent = (week: number, message: string, entityId?: string): VisualEvent => {
+  const meta = visualEventTypeFromMessage(message);
+  return {
+    id: `visual-${week}-${meta.type}-${Math.random().toString(36).slice(2, 8)}`,
+    week,
+    type: meta.type,
+    title: meta.title,
+    description: message,
+    entityId,
+    severity: meta.severity
+  };
+};
+
+const prependVisualEvents = (existing: VisualEvent[], events: VisualEvent[]): VisualEvent[] => [...events, ...existing].slice(0, 40);
 
 export const canStartSales = (store: StoreEntity): { ok: boolean; reasons: string[] } => {
   const reasons: string[] = [];
@@ -160,6 +186,7 @@ const processSetupWeek = (state: GameState): GameState => {
     week: state.week + 1,
     player: supply.store,
     cityWorkers: hiring.cityWorkers,
+    visualEvents: prependVisualEvents(state.visualEvents, [...supply.events, ...hiring.events].map((event) => createVisualEvent(state.week, event, state.player?.id))),
     eventLog: [...supply.events, ...hiring.events, `Неделя ${state.week}: подготовка магазина продолжается, продажи ещё не запущены.`, ...state.eventLog].slice(0, 30)
   };
 };
@@ -175,7 +202,7 @@ const runStoreWeek = (
   totalCustomers: number,
   suppliers = [] as GameState['suppliers']
 ): PerformanceResult => {
-  if (inputStore.isClosed) return { store: inputStore, traffic: 0, allocatedCustomers: 0 };
+  if (inputStore.isClosed) return { store: inputStore, traffic: 0, allocatedCustomers: 0, events: [] };
 
   const supplied = processPurchaseOrders(inputStore, suppliers, week);
   const retained = updateEmployeeRetention(supplied.store, [], week);
@@ -325,7 +352,7 @@ const runStoreWeek = (
     isClosed: financialHealth === 'bankrupt'
   };
 
-  return { store: { ...nextStoreBase, creditScore: calculateCreditScore(nextStoreBase) }, traffic, allocatedCustomers };
+  return { store: { ...nextStoreBase, creditScore: calculateCreditScore(nextStoreBase) }, traffic, allocatedCustomers, events: [...supplied.events, ...retained.events] };
 };
 
 const marketPhaseFromFinancials = (market: FinancialMarket): GameState['market']['phase'] => {
@@ -365,11 +392,20 @@ export const runWeeklyCycle = (state: GameState): GameState => {
   const competitorResults = competitorPlanned.map((competitor) => runStoreWeek(competitor, attractivenessByStore.get(competitor.id) ?? competitor.profile.baseTraffic, skuMarketPriceIndex, progressedEvents, marketingNoise, state.week, nextFinancialMarket, totalCustomers, state.suppliers).store);
   const nextEvent = rollNewEvent(state.week + 1);
   const nextEvents = nextEvent ? [...progressedEvents, nextEvent] : progressedEvents;
-  const nextLog = [...hiring.events, ...state.eventLog];
+  const nextLog = [...playerResult.events, ...hiring.events, ...state.eventLog];
+  const weeklyVisualMessages = [...playerResult.events, ...hiring.events];
 
   if (nextEvent) nextLog.unshift(`Неделя ${state.week + 1}: ${nextEvent.title}. ${nextEvent.description}`);
-  if (playerResult.store.lastWeekStats.lostSales > playerResult.store.lastWeekStats.weeklyRevenue / 1000) nextLog.unshift(`Неделя ${state.week}: выросли потерянные продажи из-за нехватки остатков.`);
-  if (playerResult.store.financialHealth !== state.player.financialHealth) nextLog.unshift(`Неделя ${state.week}: финансовое здоровье изменилось на «${playerResult.store.financialHealth}».`);
+  if (playerResult.store.lastWeekStats.lostSales > playerResult.store.lastWeekStats.weeklyRevenue / 1000) {
+    const message = `Неделя ${state.week}: выросли потерянные продажи из-за нехватки остатков.`;
+    nextLog.unshift(message);
+    weeklyVisualMessages.push(message);
+  }
+  if (playerResult.store.financialHealth !== state.player.financialHealth) {
+    const message = `Неделя ${state.week}: финансовое здоровье изменилось на «${playerResult.store.financialHealth}».`;
+    nextLog.unshift(message);
+    weeklyVisualMessages.push(message);
+  }
 
   return {
     ...state,
@@ -379,6 +415,7 @@ export const runWeeklyCycle = (state: GameState): GameState => {
     cityWorkers: hiring.cityWorkers,
     competitors: competitorResults,
     market: { ...state.market, currentEvents: nextEvents, marketPriceIndex: skuMarketPriceIndex, skuMarketPriceIndex, marketingNoise, financialMarket: nextFinancialMarket, phase: marketPhaseFromFinancials(nextFinancialMarket) },
+    visualEvents: prependVisualEvents(state.visualEvents, weeklyVisualMessages.map((event) => createVisualEvent(state.week, event, playerResult.store.id))),
     eventLog: nextLog.slice(0, 30)
   };
 };

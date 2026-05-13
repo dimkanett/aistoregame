@@ -8,7 +8,17 @@ import { buildSessionState, initialState } from '@/game/initialState';
 import { hireWorker } from '@/game/labor';
 import { canStartSales, runWeeklyCycle } from '@/game/simulationEngine';
 import { createPurchaseOrder } from '@/game/suppliers';
-import { BusinessStrategy, GameState, LoanType, StoreType, SupplierAgreement, WorkerRole } from '@/game/types';
+import { BusinessStrategy, GameState, LoanType, StoreType, SupplierAgreement, VisualEvent, WorkerRole } from '@/game/types';
+
+type NewVisualEvent = Omit<VisualEvent, 'id' | 'week'> & { week?: number };
+
+const createVisualEvent = (week: number, event: NewVisualEvent): VisualEvent => ({
+  ...event,
+  week: event.week ?? week,
+  id: `visual-${event.week ?? week}-${event.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+});
+
+const pushVisualEvent = (state: GameState, event: NewVisualEvent): VisualEvent[] => [createVisualEvent(state.week, event), ...state.visualEvents].slice(0, 40);
 
 interface GameStore extends GameState {
   startSession: (storeType: StoreType) => void;
@@ -16,6 +26,7 @@ interface GameStore extends GameState {
   orderStock: (skuId: string, quantity: number, supplierId?: string) => void;
   setSkuListed: (skuId: string, listed: boolean) => void;
   updateSkuAutoReorder: (skuId: string, enabled: boolean, minStock?: number, targetStock?: number, supplierId?: string, maxValue?: number) => void;
+  recordVisualEvent: (event: NewVisualEvent) => void;
   createJobRequest: (role: WorkerRole, offeredSalary: number) => void;
   hireCandidate: (requestId: string, workerId: string) => void;
   signSupplierAgreement: (supplierId: string) => void;
@@ -35,6 +46,7 @@ interface GameStore extends GameState {
 export const useGameStore = create<GameStore>((set) => ({
   ...initialState,
   startSession: (storeType) => set(() => buildSessionState(storeType)),
+  recordVisualEvent: (event) => set((state) => ({ visualEvents: pushVisualEvent(state, event) })),
   updateRetailPrice: (skuId, price) => {
     set((state) => {
       if (!state.player) return state;
@@ -54,11 +66,24 @@ export const useGameStore = create<GameStore>((set) => ({
       const supplier = state.suppliers.find((item) => item.id === (supplierId ?? sku?.supplierId));
       if (!sku || !supplier) return state;
       if (!state.player.supplierAgreements.some((agreement) => agreement.supplierId === supplier.id && agreement.active)) {
-        return { eventLog: [`Неделя ${state.week}: сначала заключите договор с поставщиком «${supplier.name}».`, ...state.eventLog].slice(0, 30) };
+        return {
+          eventLog: [`Неделя ${state.week}: сначала заключите договор с поставщиком «${supplier.name}».`, ...state.eventLog].slice(0, 30),
+          visualEvents: pushVisualEvent(state, { type: 'purchase_failed_oos', title: 'Заказ не создан', description: `Сначала заключите договор с поставщиком «${supplier.name}».`, severity: 'warning', entityId: supplier.id })
+        };
       }
       const playerForOrder = { ...state.player, productSkus: state.player.productSkus.map((item) => item.id === skuId ? { ...item, status: 'active' as const } : item) };
       const result = createPurchaseOrder(playerForOrder, supplier, skuId, Math.max(0, Math.round(quantity)), state.week);
-      return { player: result.store, eventLog: [`Неделя ${state.week}: ${result.message}`, ...state.eventLog].slice(0, 30) };
+      return {
+        player: result.store,
+        visualEvents: pushVisualEvent(state, {
+          type: result.order ? 'auto_order_created' : 'auto_order_failed',
+          title: result.order ? 'Заказ поставщику создан' : 'Заказ не создан',
+          description: result.message,
+          severity: result.order ? 'success' : 'warning',
+          entityId: skuId
+        }),
+        eventLog: [`Неделя ${state.week}: ${result.message}`, ...state.eventLog].slice(0, 30)
+      };
     });
   },
 
@@ -117,9 +142,13 @@ export const useGameStore = create<GameStore>((set) => ({
     set((state) => {
       if (!state.player) return state;
       const result = hireWorker(state.player, state.cityWorkers, requestId, workerId);
+      const hiredWorker = result.store.employees.find((worker) => worker.id === workerId);
       return {
         player: result.store,
         cityWorkers: result.cityWorkers,
+        visualEvents: hiredWorker
+          ? pushVisualEvent(state, { type: 'employee_hired', title: 'Сотрудник нанят', description: `${hiredWorker.name} выходит на смену как ${hiredWorker.role === 'seller' ? 'продавец' : 'маркетолог'}.`, severity: 'success', entityId: workerId })
+          : state.visualEvents,
         eventLog: [`Неделя ${state.week}: кандидат принят на работу.`, ...state.eventLog].slice(0, 30)
       };
     });
@@ -154,7 +183,13 @@ export const useGameStore = create<GameStore>((set) => ({
         ? state.player.activeMarketingActivities.map((activity) => (activity.activityId === activityId ? { ...activity, enabled: !activity.enabled, weeksActive: activity.enabled ? 0 : activity.weeksActive } : activity))
         : [...state.player.activeMarketingActivities, { activityId, weeksActive: 0, enabled: true }];
 
-      return { player: { ...state.player, activeMarketingActivities }, eventLog: activityRequiresMarketer ? state.eventLog : state.eventLog };
+      return {
+        player: { ...state.player, activeMarketingActivities },
+        visualEvents: activityRequiresMarketer
+          ? pushVisualEvent(state, { type: 'marketing_campaign_started', title: 'Маркетинг запущен', description: 'На сцене появился новый рекламный импульс.', severity: 'info', entityId: activityId })
+          : state.visualEvents,
+        eventLog: activityRequiresMarketer ? state.eventLog : state.eventLog
+      };
     });
   },
   hireEmployee: () => {
@@ -172,7 +207,11 @@ export const useGameStore = create<GameStore>((set) => ({
       const cityWorkers = state.cityWorkers.map((worker) =>
         worker.id === fired.id ? { ...worker, status: 'available' as const, employedBy: undefined, salaryCurrent: undefined } : worker
       );
-      return { player: { ...state.player, employees, staff, serviceLevel: staff.serviceLevel }, cityWorkers };
+      return {
+        player: { ...state.player, employees, staff, serviceLevel: staff.serviceLevel },
+        cityWorkers,
+        visualEvents: pushVisualEvent(state, { type: 'employee_left', title: 'Сотрудник ушёл', description: `${fired.name} покинул магазин.`, severity: 'warning', entityId: fired.id })
+      };
     });
   },
   setSalary: (salary) => {
@@ -213,6 +252,7 @@ export const useGameStore = create<GameStore>((set) => ({
       return {
         player: { ...player, creditScore: calculateCreditScore(player) },
         lastLoanDecision: { approved: true, message: `Кредит одобрен: ${application.amount.toLocaleString('ru-RU')} ₽.`, contract, application },
+        visualEvents: pushVisualEvent(state, { type: 'loan_approved', title: 'Кредит одобрен', description: `Банк «${bank.name}» выдал ${application.amount.toLocaleString('ru-RU')} ₽.`, severity: 'success', entityId: bank.id }),
         eventLog: [`Неделя ${state.week}: получен кредит в «${bank.name}» на ${application.amount.toLocaleString('ru-RU')} ₽.`, ...state.eventLog].slice(0, 30)
       };
     });
@@ -227,7 +267,12 @@ export const useGameStore = create<GameStore>((set) => ({
       if (!bank) return state;
       const contract = createLoanContract(bank, state.player, state.market.financialMarket, offer.loanType, offer.amount, offer.termWeeks, state.week, offer.annualInterestRate);
       const player = { ...state.player, cash: state.player.cash + offer.amount, activeLoans: [...state.player.activeLoans, contract] };
-      return { player: { ...player, creditScore: calculateCreditScore(player) }, lastLoanDecision: { approved: true, message: 'Альтернативное предложение принято.', contract, application }, eventLog: [`Неделя ${state.week}: принято альтернативное кредитное предложение.`, ...state.eventLog].slice(0, 30) };
+      return {
+        player: { ...player, creditScore: calculateCreditScore(player) },
+        lastLoanDecision: { approved: true, message: 'Альтернативное предложение принято.', contract, application },
+        visualEvents: pushVisualEvent(state, { type: 'loan_approved', title: 'Альтернативный кредит принят', description: `Получено ${offer.amount.toLocaleString('ru-RU')} ₽ по встречному предложению.`, severity: 'success', entityId: bank.id }),
+        eventLog: [`Неделя ${state.week}: принято альтернативное кредитное предложение.`, ...state.eventLog].slice(0, 30)
+      };
     });
   },
   startSales: () => {

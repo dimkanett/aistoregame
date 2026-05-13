@@ -14,6 +14,7 @@ import { StaffPanel } from '@/components/StaffPanel';
 import { SuppliersPanel } from '@/components/SuppliersPanel';
 import { StartScreen } from '@/components/StartScreen';
 import { StorePanel } from '@/components/StorePanel';
+import { StoreScene } from '@/components/StoreScene';
 import { GameTab } from '@/game/types';
 import { useGameStore } from '@/store/gameStore';
 
@@ -37,6 +38,7 @@ export default function HomePage() {
 
   const tabContent: Record<GameTab, ReactNode> = {
     dashboard: <DashboardTab />,
+    store_scene: <StoreScene />,
     store: <StorePanel />,
     assortment: <AssortmentTable />,
     marketing: <MarketingPanel />,

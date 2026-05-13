@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { CandidateRevealModal, candidateRarity, candidateRarityLabel } from '@/components/CandidateRevealModal';
 import { roleLabel } from '@/game/labor';
-import { WorkerRole } from '@/game/types';
+import { JobRequest, Worker, WorkerRole } from '@/game/types';
 import { useGameStore } from '@/store/gameStore';
 
 const formatCurrency = (value: number): string =>
@@ -19,12 +20,26 @@ export function StaffPanel() {
   const player = useGameStore((state) => state.player);
   const createJobRequest = useGameStore((state) => state.createJobRequest);
   const hireCandidate = useGameStore((state) => state.hireCandidate);
+  const recordVisualEvent = useGameStore((state) => state.recordVisualEvent);
   const fireEmployee = useGameStore((state) => state.fireEmployee);
   const investInTraining = useGameStore((state) => state.investInTraining);
   const cityWorkers = useGameStore((state) => state.cityWorkers);
 
   const [role, setRole] = useState<WorkerRole>('seller');
   const [salary, setSalary] = useState(45_000);
+  const [revealing, setRevealing] = useState<{ request: JobRequest; worker: Worker } | null>(null);
+  const [revealedCandidateIds, setRevealedCandidateIds] = useState<Set<string>>(() => new Set());
+
+  const markRevealed = useCallback((worker: Worker) => {
+    setRevealedCandidateIds((current) => new Set(current).add(worker.id));
+    recordVisualEvent({
+      type: 'candidate_revealed',
+      title: 'Кандидат раскрыт',
+      description: `${worker.name}: ${roleLabel[worker.role]}, редкость «${candidateRarityLabel[candidateRarity(worker)]}».`,
+      severity: 'info',
+      entityId: worker.id
+    });
+  }, [recordVisualEvent]);
 
   if (!player) return null;
 
@@ -79,19 +94,47 @@ export function StaffPanel() {
           ).map(({ request, candidate }) => {
             const worker = cityWorkers.find((item) => item.id === candidate);
             if (!worker) return null;
+            const isRevealed = revealedCandidateIds.has(worker.id);
             return (
               <div key={`${request.id}-${candidate}`} className="rounded-lg border border-slate-200 p-3 text-sm">
-                <p className="font-semibold">{worker.name}</p>
-                <p>{roleLabel[worker.role]} · ожидает {formatCurrency(worker.expectedSalary)}</p>
-                <p className="text-slate-600">Опыт {worker.experienceLevel}, продажи {worker.salesSkill}, дисциплина {worker.discipline}, лояльность {worker.loyalty}</p>
-                <p className="mt-1 text-slate-500">Интерес: зарплата {formatCurrency(request.offeredSalary)}, магазин {player.reputation.toFixed(0)}/100 репутации.</p>
-                <button type="button" className="mt-2 rounded-md bg-emerald-600 px-3 py-1 text-white" onClick={() => hireCandidate(request.id, worker.id)}>Нанять</button>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-100 to-sky-100 font-black text-indigo-700">
+                    {worker.avatarUrl ? <span role="img" aria-label={worker.name} className="h-full w-full rounded-full bg-cover bg-center" style={{ backgroundImage: `url(${worker.avatarUrl})` }} /> : isRevealed ? worker.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() : '?'}
+                  </div>
+                  <div>
+                    <p className="font-semibold">{isRevealed ? worker.name : 'Кандидат скрыт'}</p>
+                    <p>{roleLabel[worker.role]} · {isRevealed ? `редкость ${candidateRarityLabel[candidateRarity(worker)]}` : 'анкета не раскрыта'}</p>
+                  </div>
+                </div>
+                {isRevealed ? (
+                  <>
+                    <p className="mt-2">Ожидает {formatCurrency(worker.expectedSalary)}</p>
+                    <p className="text-slate-600">Опыт {worker.experienceLevel}, продажи {worker.salesSkill}, дисциплина {worker.discipline}, лояльность {worker.loyalty}</p>
+                    <p className="mt-1 text-slate-500">Интерес: зарплата {formatCurrency(request.offeredSalary)}, магазин {player.reputation.toFixed(0)}/100 репутации.</p>
+                    <button type="button" className="mt-2 rounded-md bg-emerald-600 px-3 py-1 text-white" onClick={() => hireCandidate(request.id, worker.id)}>Нанять</button>
+                  </>
+                ) : (
+                  <button type="button" className="mt-3 rounded-md bg-indigo-600 px-3 py-1 text-white" onClick={() => setRevealing({ request, worker })}>Открыть кандидата</button>
+                )}
               </div>
             );
           })}
           {processedRequests.length === 0 && <p className="text-sm text-slate-500">Кандидатов пока нет. Разместите заявку и перейдите на следующую неделю.</p>}
         </div>
       </div>
+
+      {revealing && (
+        <CandidateRevealModal
+          request={revealing.request}
+          worker={revealing.worker}
+          onRevealed={() => markRevealed(revealing.worker)}
+          onSkip={() => setRevealing(null)}
+          onHire={() => {
+            hireCandidate(revealing.request.id, revealing.worker.id);
+            setRevealing(null);
+          }}
+        />
+      )}
     </section>
   );
 }

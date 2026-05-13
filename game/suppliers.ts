@@ -75,7 +75,7 @@ export const processPurchaseOrders = (
           sku.id === order.skuId ? { ...sku, stock: sku.stock + order.quantity, ageWeeks: 0, status: 'active' } : sku
         );
         nextOrder = { ...nextOrder, deliveryStatus: 'delivered', actualDeliveryWeek: week };
-        events.push(`Неделя ${week}: поставлен товар по заказу ${order.id}.`);
+        events.push(`Неделя ${week}: Поставка приехала по заказу ${order.id}.`);
       } else {
         nextOrder = { ...nextOrder, deliveryStatus: 'delayed', expectedDeliveryWeek: week + 1 };
         events.push(`Неделя ${week}: поставка ${order.id} задержана.`);

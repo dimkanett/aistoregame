@@ -138,6 +138,7 @@ export const initialState: GameState = {
   suppliers: SUPPLIERS,
   cityWorkers: CITY_WORKERS,
   eventLog: [],
+  visualEvents: [],
   lastLoanDecision: null
 };
 
@@ -151,6 +152,16 @@ export const buildSessionState = (type: StoreType): GameState => {
     player,
     competitors: createCompetitors(),
     cityWorkers: CITY_WORKERS.map((worker) => ({ ...worker })),
+    visualEvents: [
+      {
+        id: `visual-start-${Date.now()}`,
+        week: 1,
+        type: 'customer_flow',
+        title: 'Магазин готовится к открытию',
+        description: 'Сцена магазина включена: наймите продавцов, подпишите поставщиков и привезите стартовый товар.',
+        severity: 'info'
+      }
+    ],
     eventLog: [`Старт подготовки: выбран формат «${type}». Наймите персонал, выберите поставщиков и закупите стартовый товар.`]
   };
 };

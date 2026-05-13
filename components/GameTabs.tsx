@@ -4,6 +4,7 @@ import { GameTab } from '@/game/types';
 
 const tabs: { id: GameTab; label: string }[] = [
   { id: 'dashboard', label: 'Дашборд' },
+  { id: 'store_scene', label: 'Сцена магазина' },
   { id: 'store', label: 'Магазин' },
   { id: 'assortment', label: 'Ассортимент / товары' },
   { id: 'marketing', label: 'Маркетинг' },

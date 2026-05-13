@@ -107,7 +107,14 @@ export function AssortmentTable() {
               const supplier = suppliers.find((item) => item.id === sku.supplierId);
               return (
                 <tr key={sku.id}>
-                  <td className="px-3 py-3 font-medium">{sku.name}</td>
+                  <td className="px-3 py-3 font-medium">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-100 to-amber-100 text-lg" title={sku.imageUrl ? sku.name : 'Placeholder товара'}>
+                        {sku.imageUrl ? <span role="img" aria-label={sku.name} className="h-full w-full rounded-lg bg-cover bg-center" style={{ backgroundImage: `url(${sku.imageUrl})` }} /> : '🛍️'}
+                      </div>
+                      <span>{sku.name}</span>
+                    </div>
+                  </td>
                   <td className="px-3 py-3">{sku.categoryId}</td>
                   <td className="px-3 py-3">{sku.segment}</td>
                   <td className="px-3 py-3">{supplier?.name ?? '—'}</td>

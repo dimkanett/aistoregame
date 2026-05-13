@@ -25,9 +25,14 @@ export function SuppliersPanel() {
             return (
               <div key={supplier.id} className="rounded-lg border border-slate-200 p-4 text-sm">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{supplier.name}</p>
-                    <p className="text-slate-600">Категории: {supplier.categories.join(', ')}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-indigo-100 text-xl font-black text-indigo-700" title={supplier.logoUrl ? supplier.name : 'Placeholder логотипа'}>
+                      {supplier.logoUrl ? <span role="img" aria-label={supplier.name} className="h-full w-full rounded-xl bg-cover bg-center" style={{ backgroundImage: `url(${supplier.logoUrl})` }} /> : supplier.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-semibold">{supplier.name}</p>
+                      <p className="text-slate-600">Категории: {supplier.categories.join(', ')}</p>
+                    </div>
                   </div>
                   <span className={active ? 'text-green-700' : 'text-slate-500'}>{active ? 'договор активен' : 'нет договора'}</span>
                 </div>
