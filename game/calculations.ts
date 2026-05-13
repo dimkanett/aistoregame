@@ -19,7 +19,7 @@ export const cloneBaseSkus = (withStarterStock = false): ProductSku[] =>
   BASE_SKUS.map((item) => ({
     ...item,
     stock: withStarterStock ? item.targetStock : 0,
-    status: withStarterStock ? 'active' : 'out_of_stock'
+    status: withStarterStock ? 'active' : 'blocked'
   }));
 
 export const totalStock = (categories: CategoryState[]): number => categories.reduce((sum, category) => sum + category.stock, 0);

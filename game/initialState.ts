@@ -23,7 +23,17 @@ const createEmptyStats = (profile: StoreEntity['profile'], stock: number): Weekl
   reputation: profile.reputation,
   customerLoyalty: 50,
   marketShare: 0,
-  cogs: 0
+  cogs: 0,
+  activeSkuCount: 0,
+  blockedSkuCount: stock > 0 ? 0 : 36,
+  outOfStockActiveSkuCount: 0,
+  payrollAccrued: 0,
+  payrollCashPaid: 0,
+  salaryDebt: 0,
+  sellerCount: 0,
+  marketerCount: 0,
+  autoOrdersCreated: 0,
+  autoOrdersFailed: 0
 });
 
 export const createStoreEntity = (id: string, name: string, type: StoreType, isPlayer = false, employees: Worker[] = []): StoreEntity => {
@@ -75,7 +85,10 @@ export const createStoreEntity = (id: string, name: string, type: StoreType, isP
       loanPayments: 0,
       writeOffs: 0,
       returnsCost: 0,
-      supplierPayments: 0
+      supplierPayments: 0,
+      payrollAccruedExpense: 0,
+      payrollCashPaid: 0,
+      salaryDebt: 0
     },
     lastWeekStats: stats,
     activeLoans: [],
@@ -90,7 +103,12 @@ export const createStoreEntity = (id: string, name: string, type: StoreType, isP
     skuSalesLastWeek: {},
     skuLostSalesLastWeek: {},
     weeklyHistory: [],
-    marketShare: 0
+    marketShare: 0,
+    payrollAccrued: 0,
+    salaryDebt: 0,
+    nextPayrollWeek: 4,
+    payrollCycleWeeks: 4,
+    iconType: type
   };
 };
 

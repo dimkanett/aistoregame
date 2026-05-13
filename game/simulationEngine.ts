@@ -205,6 +205,7 @@ const runStoreWeek = (
   const categorySales: Record<string, number> = {};
   const categoryLost: Record<string, number> = {};
   const demandWeights = store.productSkus.map((sku) => {
+    if (sku.status === 'blocked') return 0;
     const marketAvg = skuMarketPriceIndex[sku.id] ?? sku.baseMarketPrice;
     const priceIndex = sku.retailPrice / marketAvg;
     const priceEffect = priceIndex > 1 ? clamp(1 - (priceIndex - 1) * sku.elasticity * (1 - store.customerLoyalty / 300), 0.3, 1) : clamp(1 + (1 - priceIndex) * sku.elasticity * 0.65, 1, 1.45);
@@ -213,9 +214,10 @@ const runStoreWeek = (
   const totalWeight = demandWeights.reduce((sum, weight) => sum + weight, 0) || 1;
 
   const productSkus = store.productSkus.map((sku, index) => {
-    const desired = Math.round(targetUnits * (demandWeights[index] / totalWeight));
+    const listed = sku.status !== 'blocked';
+    const desired = listed ? Math.round(targetUnits * (demandWeights[index] / totalWeight)) : 0;
     const sold = Math.min(sku.stock, Math.max(0, desired));
-    const missed = Math.max(0, desired - sold);
+    const missed = listed ? Math.max(0, desired - sold) : 0;
     const effectiveRetail = Math.max(sku.purchasePrice * 1.03, sku.retailPrice * (1 + marketing.marginImpact));
     soldUnits += sold;
     lostSales += missed;
@@ -226,12 +228,23 @@ const runStoreWeek = (
     categorySales[sku.categoryId] = (categorySales[sku.categoryId] ?? 0) + sold;
     categoryLost[sku.categoryId] = (categoryLost[sku.categoryId] ?? 0) + missed;
     const stock = sku.stock - sold;
-    return { ...sku, stock, ageWeeks: stock > 0 ? sku.ageWeeks + 1 : 0, status: skuStatus(stock, sku.minStock, sku.targetStock, sku.ageWeeks + 1) };
+    return {
+      ...sku,
+      stock,
+      ageWeeks: stock > 0 ? sku.ageWeeks + 1 : 0,
+      status: listed ? skuStatus(stock, sku.minStock, sku.targetStock, sku.ageWeeks + 1) : 'blocked'
+    };
   });
 
+  const activeSkuCount = productSkus.filter((sku) => sku.status !== 'blocked').length;
+  const blockedSkuCount = productSkus.filter((sku) => sku.status === 'blocked').length;
+  const outOfStockActiveSkuCount = productSkus.filter((sku) => sku.status === 'out_of_stock').length;
+  const marketerCount = store.employees.filter((worker) => worker.role === 'marketer').length;
+  const salaryDebt = store.salaryDebt ?? 0;
   const categories = syncCategoriesFromSkus(store.categories, productSkus);
   const weeklyRent = store.profile.rent / WEEKS_PER_MONTH;
   const weeklyPayroll = store.employees.reduce((sum, worker) => sum + (worker.salaryCurrent ?? worker.expectedSalary), 0) / WEEKS_PER_MONTH;
+  const payrollCashPaid = Math.round(weeklyPayroll);
   const weeklyOperating = (store.profile.operatingCosts / WEEKS_PER_MONTH) * eventState.taxMultiplier * (1 + market.inflationRate * 0.25);
   const penalties = (churn > 0.24 ? 8_000 : 0) + (lostSales > soldUnits * 0.45 ? 7_000 : 0) + (eventState.complianceCost > 0 && store.reputation < 52 ? Math.round(eventState.complianceCost * 0.35) : 0);
   const grossProfit = Math.round(revenue - cogs);
@@ -272,7 +285,17 @@ const runStoreWeek = (
     reputation: nextReputation,
     customerLoyalty: nextLoyalty,
     marketShare,
-    cogs: Math.round(cogs)
+    cogs: Math.round(cogs),
+    activeSkuCount,
+    blockedSkuCount,
+    outOfStockActiveSkuCount,
+    payrollAccrued: Math.round(weeklyPayroll),
+    payrollCashPaid,
+    salaryDebt,
+    sellerCount,
+    marketerCount,
+    autoOrdersCreated: 0,
+    autoOrdersFailed: 0
   };
   const historyEntry: WeeklyHistoryEntry = { week, cash, revenue: stats.weeklyRevenue, grossProfit: stats.grossProfit, netProfit: stats.netProfit, marginPercent: stats.marginPercent, traffic: stats.traffic, conversion: stats.conversion, averageCheck: stats.averageCheck, totalStock: stats.totalStock, lostSales: stats.lostSales, expenses: stats.expenses, marketingExpenses: stats.marketingExpenses, payrollExpenses: stats.payrollExpenses, rentExpenses: stats.rentExpenses, loanPayments: stats.loanPayments, debtTotal: stats.debtTotal, reputation: stats.reputation, customerLoyalty: stats.customerLoyalty, marketShare: stats.marketShare };
   const nextStoreBase: StoreEntity = {
@@ -286,7 +309,7 @@ const runStoreWeek = (
     customerLoyalty: nextLoyalty,
     repeatPurchaseRate: clamp(0.12 + nextLoyalty / 400, 0.1, 0.42),
     loyalCustomerBase: Math.round(clamp(store.loyalCustomerBase + soldUnits * (nextLoyalty / 100) - lostSales * 0.08, 0, 7000)),
-    expenses: { rent: Math.round(weeklyRent), operating: Math.round(weeklyOperating), marketing: marketing.cost, payroll: Math.round(weeklyPayroll), penalties, loanPayments, writeOffs: 0, returnsCost: 0, supplierPayments },
+    expenses: { rent: Math.round(weeklyRent), operating: Math.round(weeklyOperating), marketing: marketing.cost, payroll: Math.round(weeklyPayroll), penalties, loanPayments, writeOffs: 0, returnsCost: 0, supplierPayments, payrollAccruedExpense: Math.round(weeklyPayroll), payrollCashPaid, salaryDebt },
     lastWeekStats: stats,
     lossStreak,
     financialHealth,
@@ -295,6 +318,8 @@ const runStoreWeek = (
     skuSalesLastWeek: skuSales,
     skuLostSalesLastWeek: skuLost,
     marketShare,
+    payrollAccrued: Math.round(weeklyPayroll),
+    salaryDebt,
     activeMarketingActivities: store.activeMarketingActivities,
     weeklyHistory: [...store.weeklyHistory, historyEntry],
     isClosed: financialHealth === 'bankrupt'

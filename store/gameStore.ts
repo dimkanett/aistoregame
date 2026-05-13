@@ -14,6 +14,8 @@ interface GameStore extends GameState {
   startSession: (storeType: StoreType) => void;
   updateRetailPrice: (skuId: string, price: number) => void;
   orderStock: (skuId: string, quantity: number, supplierId?: string) => void;
+  setSkuListed: (skuId: string, listed: boolean) => void;
+  updateSkuAutoReorder: (skuId: string, enabled: boolean, minStock?: number, targetStock?: number, supplierId?: string, maxValue?: number) => void;
   createJobRequest: (role: WorkerRole, offeredSalary: number) => void;
   hireCandidate: (requestId: string, workerId: string) => void;
   signSupplierAgreement: (supplierId: string) => void;
@@ -54,8 +56,37 @@ export const useGameStore = create<GameStore>((set) => ({
       if (!state.player.supplierAgreements.some((agreement) => agreement.supplierId === supplier.id && agreement.active)) {
         return { eventLog: [`Неделя ${state.week}: сначала заключите договор с поставщиком «${supplier.name}».`, ...state.eventLog].slice(0, 30) };
       }
-      const result = createPurchaseOrder(state.player, supplier, skuId, Math.max(0, Math.round(quantity)), state.week);
+      const playerForOrder = { ...state.player, productSkus: state.player.productSkus.map((item) => item.id === skuId ? { ...item, status: 'active' as const } : item) };
+      const result = createPurchaseOrder(playerForOrder, supplier, skuId, Math.max(0, Math.round(quantity)), state.week);
       return { player: result.store, eventLog: [`Неделя ${state.week}: ${result.message}`, ...state.eventLog].slice(0, 30) };
+    });
+  },
+
+  setSkuListed: (skuId, listed) => {
+    set((state) => {
+      if (!state.player) return state;
+      const productSkus = state.player.productSkus.map((sku) =>
+        sku.id === skuId ? { ...sku, status: listed ? (sku.stock > 0 ? 'active' as const : 'out_of_stock' as const) : 'blocked' as const } : sku
+      );
+      return { player: { ...state.player, productSkus, categories: syncCategoriesFromSkus(state.player.categories, productSkus) } };
+    });
+  },
+  updateSkuAutoReorder: (skuId, enabled, minStock, targetStock, supplierId, maxValue) => {
+    set((state) => {
+      if (!state.player) return state;
+      const productSkus = state.player.productSkus.map((sku) =>
+        sku.id === skuId
+          ? {
+              ...sku,
+              autoReorderEnabled: enabled,
+              reorderMinStock: minStock ?? sku.reorderMinStock,
+              reorderTargetStock: targetStock ?? sku.reorderTargetStock,
+              preferredSupplierId: supplierId ?? sku.preferredSupplierId,
+              maxAutoOrderValue: maxValue ?? sku.maxAutoOrderValue
+            }
+          : sku
+      );
+      return { player: { ...state.player, productSkus } };
     });
   },
   createJobRequest: (role, offeredSalary) => {
@@ -191,6 +222,7 @@ export const useGameStore = create<GameStore>((set) => ({
       if (!state.player || !state.lastLoanDecision?.application?.alternativeOffer) return state;
       const application = state.lastLoanDecision.application;
       const offer = application.alternativeOffer;
+      if (!offer) return state;
       const bank = BANKS.find((item) => item.id === application.bankId);
       if (!bank) return state;
       const contract = createLoanContract(bank, state.player, state.market.financialMarket, offer.loanType, offer.amount, offer.termWeeks, state.week, offer.annualInterestRate);

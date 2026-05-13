@@ -121,7 +121,12 @@ export const BASE_SKUS: ProductSku[] = BASE_CATEGORIES.flatMap((category) =>
       minStock: segment === 'cheap' ? 35 : segment === 'mid' ? 25 : 10,
       targetStock: segment === 'cheap' ? 110 : segment === 'mid' ? 80 : 35,
       ageWeeks: 0,
-      status: 'out_of_stock'
+      status: 'blocked',
+      autoReorderEnabled: false,
+      preferredSupplierId: segment === 'cheap' ? 'value_supply' : segment === 'mid' ? 'balanced_trade' : 'premium_house',
+      reorderMinStock: segment === 'cheap' ? 30 : segment === 'mid' ? 20 : 8,
+      reorderTargetStock: segment === 'cheap' ? 100 : segment === 'mid' ? 70 : 30,
+      maxAutoOrderValue: segment === 'premium' ? 120_000 : 180_000
     } satisfies ProductSku;
   })
 );

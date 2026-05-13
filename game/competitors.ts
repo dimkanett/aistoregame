@@ -72,8 +72,8 @@ export const createCompetitors = (): StoreEntity[] => {
       repeatPurchaseRate: 0.16,
       loyalCustomerBase: Math.round(profile.baseTraffic * 0.16),
       serviceLevel: profile.serviceLevel,
-      expenses: { rent: profile.rent / 4.33, operating: profile.operatingCosts / 4.33, marketing: 0, payroll, penalties: 0, loanPayments: 0, writeOffs: 0, returnsCost: 0, supplierPayments: 0 },
-      lastWeekStats: { weeklyRevenue: 0, grossProfit: 0, netProfit: 0, weeklyProfit: 0, marginPercent: 0, traffic: 0, conversion: 0, averageCheck: 0, totalStock: totalSkuStock(productSkus), lostSales: 0, expenses: 0, marketingExpenses: 0, payrollExpenses: payroll, rentExpenses: profile.rent / 4.33, loanPayments: 0, debtTotal: 0, reputation: profile.reputation, customerLoyalty: 50, marketShare: 0, cogs: 0 },
+      expenses: { rent: profile.rent / 4.33, operating: profile.operatingCosts / 4.33, marketing: 0, payroll, penalties: 0, loanPayments: 0, writeOffs: 0, returnsCost: 0, supplierPayments: 0, payrollAccruedExpense: 0, payrollCashPaid: 0, salaryDebt: 0 },
+      lastWeekStats: { weeklyRevenue: 0, grossProfit: 0, netProfit: 0, weeklyProfit: 0, marginPercent: 0, traffic: 0, conversion: 0, averageCheck: 0, totalStock: totalSkuStock(productSkus), lostSales: 0, expenses: 0, marketingExpenses: 0, payrollExpenses: payroll, rentExpenses: profile.rent / 4.33, loanPayments: 0, debtTotal: 0, reputation: profile.reputation, customerLoyalty: 50, marketShare: 0, cogs: 0, activeSkuCount: productSkus.length, blockedSkuCount: 0, outOfStockActiveSkuCount: 0, payrollAccrued: 0, payrollCashPaid: 0, salaryDebt: 0, sellerCount: employees.filter((worker) => worker.role === 'seller').length, marketerCount: employees.filter((worker) => worker.role === 'marketer').length, autoOrdersCreated: 0, autoOrdersFailed: 0 },
       activeLoans: [],
       loanApplications: [],
       creditScore: 56 + Math.floor(Math.random() * 18),
@@ -85,7 +85,12 @@ export const createCompetitors = (): StoreEntity[] => {
       skuSalesLastWeek: {},
       skuLostSalesLastWeek: {},
       weeklyHistory: [],
-      marketShare: 0
+      marketShare: 0,
+      payrollAccrued: 0,
+      salaryDebt: 0,
+      nextPayrollWeek: 4,
+      payrollCycleWeeks: 4,
+      iconType: type
     };
   });
 };

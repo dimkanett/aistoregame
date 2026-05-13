@@ -22,7 +22,7 @@ export type MarketingActivityCategory = 'traffic' | 'conversion' | 'loyalty' | '
 export type SegmentName = 'Центр' | 'Спальные районы' | 'Онлайн-аудитория' | 'Эконом-сегмент';
 export type CategoryName = 'Посуда' | 'Текстиль' | 'Декор' | 'Бытовая химия' | 'Товары для кухни' | 'Подарки';
 export type ProductSegment = 'cheap' | 'mid' | 'premium';
-export type ProductStatus = 'active' | 'slow' | 'dead' | 'out_of_stock';
+export type ProductStatus = 'active' | 'blocked' | 'slow' | 'dead' | 'out_of_stock';
 export type FinancialHealth = 'healthy' | 'strained' | 'cash_gap' | 'pre_bankruptcy' | 'bankrupt';
 export type BusinessStrategy =
   | 'premium_margin'
@@ -81,6 +81,12 @@ export interface ProductSku {
   targetStock: number;
   ageWeeks: number;
   status: ProductStatus;
+  imageUrl?: string;
+  autoReorderEnabled: boolean;
+  preferredSupplierId?: string;
+  reorderMinStock: number;
+  reorderTargetStock: number;
+  maxAutoOrderValue?: number;
 }
 
 export interface StoreProfile {
@@ -121,6 +127,7 @@ export interface Worker {
   salesSkill: number;
   discipline: number;
   status: WorkerStatus;
+  avatarUrl?: string;
   employedBy?: string;
   salaryCurrent?: number;
   weeksEmployed: number;
@@ -174,6 +181,9 @@ export interface ExpenseState {
   writeOffs: number;
   returnsCost: number;
   supplierPayments: number;
+  payrollAccruedExpense: number;
+  payrollCashPaid: number;
+  salaryDebt: number;
 }
 
 export interface WeeklyStats {
@@ -197,6 +207,16 @@ export interface WeeklyStats {
   customerLoyalty: number;
   marketShare: number;
   cogs: number;
+  activeSkuCount: number;
+  blockedSkuCount: number;
+  outOfStockActiveSkuCount: number;
+  payrollAccrued: number;
+  payrollCashPaid: number;
+  salaryDebt: number;
+  sellerCount: number;
+  marketerCount: number;
+  autoOrdersCreated: number;
+  autoOrdersFailed: number;
 }
 
 export interface WeeklyHistoryEntry {
@@ -241,6 +261,7 @@ export interface Bank {
   maxTermWeeks: number;
   approvalStrictness: number;
   description: string;
+  logoUrl?: string;
   minCreditScore: number;
   minDSCR: number;
   maxDebtToRevenue: number;
@@ -324,6 +345,7 @@ export interface Supplier {
   returnPolicy: string;
   exclusivityPotential: number;
   reputationRequirement?: number;
+  logoUrl?: string;
 }
 
 export interface SupplierAgreement {
@@ -386,6 +408,12 @@ export interface StoreEntity {
   skuLostSalesLastWeek: Record<string, number>;
   weeklyHistory: WeeklyHistoryEntry[];
   marketShare: number;
+  payrollAccrued: number;
+  salaryDebt: number;
+  nextPayrollWeek: number;
+  payrollCycleWeeks: number;
+  imageUrl?: string;
+  iconType?: string;
   isClosed?: boolean;
 }
 
