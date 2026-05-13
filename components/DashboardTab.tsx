@@ -16,7 +16,7 @@ export function DashboardTab() {
     player.lastWeekStats.netProfit < 0 ? 'Неделя закрыта с убытком' : null,
     player.customerLoyalty < 40 ? 'Лояльность клиентов ниже комфортного уровня' : null,
     player.lastWeekStats.debtTotal > player.cash ? 'Долг выше текущего остатка денег' : null
-  ].filter(Boolean);
+  ].filter((risk): risk is string => Boolean(risk));
 
   return (
     <div className="space-y-6">

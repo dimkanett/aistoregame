@@ -10,6 +10,7 @@ const tabs: { id: GameTab; label: string }[] = [
   { id: 'staff', label: 'Персонал' },
   { id: 'competitors', label: 'Конкуренты' },
   { id: 'banks', label: 'Банки и кредиты' },
+  { id: 'suppliers', label: 'Поставщики' },
   { id: 'market', label: 'Рынок' },
   { id: 'events', label: 'События / государство' },
   { id: 'analytics', label: 'Аналитика / отчёты' }

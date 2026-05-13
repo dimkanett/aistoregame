@@ -1,9 +1,9 @@
-import { BANKS, MARKET_SEGMENTS, STORE_PROFILES } from './constants';
-import { cloneBaseCategories, totalStock } from './calculations';
+import { BANKS, CITY_WORKERS, MARKET_SEGMENTS, STORE_PROFILES, SUPPLIERS } from './constants';
+import { cloneBaseCategories, cloneBaseSkus, deriveStaffFromEmployees, syncCategoriesFromSkus, totalSkuStock } from './calculations';
 import { createCompetitors } from './competitors';
-import { GameState, StoreEntity, StoreType, WeeklyStats } from './types';
+import { GameState, StoreEntity, StoreType, WeeklyStats, Worker } from './types';
 
-const createEmptyStats = (profile: StoreEntity['profile'], categories: StoreEntity['categories']): WeeklyStats => ({
+const createEmptyStats = (profile: StoreEntity['profile'], stock: number): WeeklyStats => ({
   weeklyRevenue: 0,
   grossProfit: 0,
   netProfit: 0,
@@ -12,12 +12,12 @@ const createEmptyStats = (profile: StoreEntity['profile'], categories: StoreEnti
   traffic: profile.baseTraffic,
   conversion: 0,
   averageCheck: 0,
-  totalStock: totalStock(categories),
+  totalStock: stock,
   lostSales: 0,
   expenses: 0,
   marketingExpenses: 0,
-  payrollExpenses: profile.defaultStaff * 38_000,
-  rentExpenses: profile.rent,
+  payrollExpenses: 0,
+  rentExpenses: profile.rent / 4.33,
   loanPayments: 0,
   debtTotal: 0,
   reputation: profile.reputation,
@@ -26,11 +26,13 @@ const createEmptyStats = (profile: StoreEntity['profile'], categories: StoreEnti
   cogs: 0
 });
 
-export const createStoreEntity = (id: string, name: string, type: StoreType, isPlayer = false): StoreEntity => {
+export const createStoreEntity = (id: string, name: string, type: StoreType, isPlayer = false, employees: Worker[] = []): StoreEntity => {
   const profile = STORE_PROFILES[type];
-  const categories = cloneBaseCategories();
-  const salary = isPlayer ? 38_000 : 36_000 + Math.floor(Math.random() * 8_000);
-  const stats = createEmptyStats(profile, categories);
+  const productSkus = cloneBaseSkus(!isPlayer);
+  const categories = syncCategoriesFromSkus(cloneBaseCategories(), productSkus);
+  const staff = deriveStaffFromEmployees(employees, 40_000);
+  const stock = totalSkuStock(productSkus);
+  const stats = createEmptyStats(profile, stock);
 
   return {
     id,
@@ -38,33 +40,46 @@ export const createStoreEntity = (id: string, name: string, type: StoreType, isP
     type,
     cash: profile.startCash,
     categories,
-    activeMarketingActivities: isPlayer ? [] : [{ activityId: 'local_ads', weeksActive: 0, enabled: true }],
+    productSkus,
+    activeMarketingActivities: [],
     profile,
-    staff: {
-      headcount: profile.defaultStaff,
-      averageSalary: salary,
-      serviceLevel: profile.serviceLevel,
-      workload: 0.75,
-      churn: 0.06,
-      trainingLevel: 0.15
-    },
+    staff,
+    employees,
+    jobRequests: [],
+    supplierAgreements: isPlayer
+      ? []
+      : [
+          {
+            supplierId: 'balanced_trade',
+            storeId: id,
+            startedWeek: 1,
+            paymentTerms: 'on_delivery',
+            deliverySLAWeeks: 1,
+            priceModifier: 1,
+            bonusTerms: { threshold: 220_000, discount: 0.04 },
+            active: true
+          }
+        ],
+    purchaseOrders: [],
     reputation: profile.reputation,
     customerLoyalty: isPlayer ? 52 : 45 + Math.floor(Math.random() * 16),
     repeatPurchaseRate: 0.18,
     loyalCustomerBase: Math.round(profile.baseTraffic * 0.18),
     serviceLevel: profile.serviceLevel,
     expenses: {
-      rent: profile.rent,
-      operating: profile.operatingCosts,
+      rent: profile.rent / 4.33,
+      operating: profile.operatingCosts / 4.33,
       marketing: 0,
-      payroll: profile.defaultStaff * salary,
+      payroll: 0,
       penalties: 0,
       loanPayments: 0,
       writeOffs: 0,
-      returnsCost: 0
+      returnsCost: 0,
+      supplierPayments: 0
     },
     lastWeekStats: stats,
     activeLoans: [],
+    loanApplications: [],
     creditScore: isPlayer ? 68 : 56 + Math.floor(Math.random() * 18),
     financialHealth: 'healthy',
     lossStreak: 0,
@@ -72,6 +87,8 @@ export const createStoreEntity = (id: string, name: string, type: StoreType, isP
     competitorStrategy: isPlayer ? undefined : 'balanced',
     categorySalesLastWeek: {},
     categoryLostSalesLastWeek: {},
+    skuSalesLastWeek: {},
+    skuLostSalesLastWeek: {},
     weeklyHistory: [],
     marketShare: 0
   };
@@ -79,15 +96,17 @@ export const createStoreEntity = (id: string, name: string, type: StoreType, isP
 
 export const initialState: GameState = {
   week: 1,
+  gamePhase: 'setup',
   sessionStarted: false,
   selectedStoreType: null,
   player: null,
   competitors: [],
   market: {
-    weeklyCustomerPool: 10_000,
+    weeklyCustomerPool: 25_000,
     segments: MARKET_SEGMENTS,
     currentEvents: [],
     marketPriceIndex: {},
+    skuMarketPriceIndex: {},
     marketingNoise: 0,
     phase: 'стабильность',
     financialMarket: {
@@ -98,15 +117,22 @@ export const initialState: GameState = {
     }
   },
   banks: BANKS,
+  suppliers: SUPPLIERS,
+  cityWorkers: CITY_WORKERS,
   eventLog: [],
   lastLoanDecision: null
 };
 
-export const buildSessionState = (type: StoreType): GameState => ({
-  ...initialState,
-  sessionStarted: true,
-  selectedStoreType: type,
-  player: createStoreEntity('player', 'Ваш магазин', type, true),
-  competitors: createCompetitors(),
-  eventLog: [`Старт сессии: выбран формат «${type}».`]
-});
+export const buildSessionState = (type: StoreType): GameState => {
+  const player = createStoreEntity('player', 'Ваш магазин', type, true);
+  return {
+    ...initialState,
+    gamePhase: 'setup',
+    sessionStarted: true,
+    selectedStoreType: type,
+    player,
+    competitors: createCompetitors(),
+    cityWorkers: CITY_WORKERS.map((worker) => ({ ...worker })),
+    eventLog: [`Старт подготовки: выбран формат «${type}». Наймите персонал, выберите поставщиков и закупите стартовый товар.`]
+  };
+};

@@ -13,6 +13,7 @@ export function MarketingPanel() {
 
   if (!player) return null;
 
+  const hasMarketer = player.employees.some((worker) => worker.role === 'marketer');
   const activeIds = new Set(player.activeMarketingActivities.filter((activity) => activity.enabled).map((activity) => activity.activityId));
   const budget = MARKETING_ACTIVITIES.filter((activity) => activeIds.has(activity.id)).reduce((sum, activity) => sum + activity.weeklyCost, 0);
   const activeCount = activeIds.size;
@@ -27,6 +28,7 @@ export function MarketingPanel() {
           <div className="rounded-lg bg-slate-50 p-3">Маркетинговый шум: {(marketingNoise * 100).toFixed(1)}%</div>
           <div className="rounded-lg bg-slate-50 p-3">Лояльность: {player.customerLoyalty.toFixed(1)} / 100</div>
         </div>
+        {!hasMarketer && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">Нужен маркетолог для запуска большинства маркетинговых активностей. Без него доступны только базовая локальная реклама и распродажа.</p>}
         {activeCount > 4 && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Слишком много активностей: ROI может стать отрицательным из-за шума и усталости аудитории.</p>}
       </div>
 
@@ -35,13 +37,14 @@ export function MarketingPanel() {
           const activeState = player.activeMarketingActivities.find((item) => item.activityId === activity.id);
           const active = Boolean(activeState?.enabled);
           const storeFit = activity.effectivenessByStoreType[player.type] ?? 1;
+          const blocked = Boolean(activity.requiresMarketer && !hasMarketer);
           return (
             <label
               key={activity.id}
-              className={`cursor-pointer rounded-xl border p-4 shadow-sm ${active ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+              className={`rounded-xl border p-4 shadow-sm ${blocked ? 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-70' : active ? 'cursor-pointer border-indigo-500 bg-indigo-50' : 'cursor-pointer border-slate-200 bg-white hover:bg-slate-50'}`}
             >
               <div className="flex items-start gap-3">
-                <input type="checkbox" className="mt-1" checked={active} onChange={() => toggleMarketingActivity(activity.id)} />
+                <input type="checkbox" className="mt-1" checked={active} disabled={blocked} onChange={() => toggleMarketingActivity(activity.id)} />
                 <div>
                   <p className="font-semibold">{activity.name}</p>
                   <p className="mt-1 text-sm text-slate-600">{activity.description}</p>
@@ -55,6 +58,7 @@ export function MarketingPanel() {
                     <span>Фит формата: x{storeFit.toFixed(2)}</span>
                     <span>Маржа: {(activity.marginImpact * 100).toFixed(1)} п.п.</span>
                   </div>
+                  {blocked && <p className="mt-2 text-xs text-red-700">Требуется маркетолог.</p>}
                   {activeState && <p className="mt-2 text-xs text-slate-500">Активно недель: {activeState.weeksActive}</p>}
                 </div>
               </div>

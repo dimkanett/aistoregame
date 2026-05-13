@@ -11,7 +11,7 @@ export function AnalyticsPanel() {
   if (!player) return null;
 
   const stats = player.lastWeekStats;
-  const previous = player.weeklyHistory.at(-2);
+  const previous = player.weeklyHistory[player.weeklyHistory.length - 2];
   const trafficGain = previous ? stats.traffic - previous.traffic : stats.traffic;
   const revenueGain = previous ? stats.weeklyRevenue - previous.revenue : stats.weeklyRevenue;
   const nearPayments = player.activeLoans.flatMap((loan) => loan.paymentSchedule.filter((payment) => !payment.paid && !payment.overdue).slice(0, 2));
@@ -22,7 +22,7 @@ export function AnalyticsPanel() {
     player.reputation < 50 ? 'Падение репутации' : null,
     player.lossStreak >= 2 ? 'Убыточная стратегия несколько недель подряд' : null,
     player.activeMarketingActivities.some((activity) => activity.activityId === 'discount_campaign' && activity.weeksActive > 4) ? 'Высокая зависимость от скидок' : null
-  ].filter(Boolean);
+  ].filter((risk): risk is string => Boolean(risk));
 
   return (
     <section className="grid gap-4 lg:grid-cols-2">

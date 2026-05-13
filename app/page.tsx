@@ -11,6 +11,7 @@ import { MarketingPanel } from '@/components/MarketingPanel';
 import { MarketEventsPanel } from '@/components/MarketEventsPanel';
 import { MarketPanel } from '@/components/MarketPanel';
 import { StaffPanel } from '@/components/StaffPanel';
+import { SuppliersPanel } from '@/components/SuppliersPanel';
 import { StartScreen } from '@/components/StartScreen';
 import { StorePanel } from '@/components/StorePanel';
 import { GameTab } from '@/game/types';
@@ -22,6 +23,8 @@ export default function HomePage() {
   const sessionStarted = useGameStore((state) => state.sessionStarted);
   const player = useGameStore((state) => state.player);
   const nextWeek = useGameStore((state) => state.nextWeek);
+  const startSales = useGameStore((state) => state.startSales);
+  const gamePhase = useGameStore((state) => state.gamePhase);
   const resetGame = useGameStore((state) => state.resetGame);
 
   if (!sessionStarted || !player) {
@@ -40,6 +43,7 @@ export default function HomePage() {
     staff: <StaffPanel />,
     competitors: <CompetitorsPanel />,
     banks: <BanksPanel />,
+    suppliers: <SuppliersPanel />,
     market: <MarketPanel />,
     events: <MarketEventsPanel />,
     analytics: <AnalyticsPanel />
@@ -50,7 +54,7 @@ export default function HomePage() {
       <header className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Store Manager Simulator</h1>
-          <p className="text-sm text-slate-500">Неделя #{week} · Формат: {player.type}</p>
+          <p className="text-sm text-slate-500">Неделя #{week} · Формат: {player.type} · Фаза: {gamePhase}</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -60,6 +64,15 @@ export default function HomePage() {
           >
             Сброс
           </button>
+          {gamePhase === 'setup' && (
+            <button
+              type="button"
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+              onClick={startSales}
+            >
+              Начать продажи
+            </button>
+          )}
           <button
             type="button"
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"

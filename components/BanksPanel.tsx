@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { estimateLoanRate, estimateWeeklyPayment, loanTypeLabels, approvalChance } from '@/game/banking';
+import { evaluateLoanApplication, loanTypeLabels } from '@/game/banking';
 import { LoanType } from '@/game/types';
 import { useGameStore } from '@/store/gameStore';
 
@@ -16,6 +16,8 @@ export function BanksPanel() {
   const market = useGameStore((state) => state.market.financialMarket);
   const lastLoanDecision = useGameStore((state) => state.lastLoanDecision);
   const applyForLoan = useGameStore((state) => state.applyForLoan);
+  const acceptAlternativeLoan = useGameStore((state) => state.acceptAlternativeLoan);
+  const week = useGameStore((state) => state.week);
 
   const [bankId, setBankId] = useState(banks[0]?.id ?? '');
   const [loanType, setLoanType] = useState<LoanType>('working_capital');
@@ -25,13 +27,8 @@ export function BanksPanel() {
   const selectedBank = banks.find((bank) => bank.id === bankId) ?? banks[0];
   const preview = useMemo(() => {
     if (!player || !selectedBank) return null;
-    const rate = estimateLoanRate(player, selectedBank, market, loanType);
-    return {
-      rate,
-      payment: estimateWeeklyPayment(amount, rate, term),
-      chance: approvalChance(player, selectedBank, market, amount)
-    };
-  }, [amount, loanType, market, player, selectedBank, term]);
+    return evaluateLoanApplication(player, selectedBank, market, loanType, amount, term, week);
+  }, [amount, loanType, market, player, selectedBank, term, week]);
 
   if (!player) return null;
 
@@ -83,15 +80,22 @@ export function BanksPanel() {
             </label>
             {preview && (
               <div className="rounded-lg bg-slate-50 p-3">
-                <p>Предварительная ставка: {(preview.rate * 100).toFixed(2)}% годовых</p>
-                <p>Недельный платёж: {formatCurrency(preview.payment)}</p>
-                <p>Вероятность одобрения: {(preview.chance * 100).toFixed(0)}%</p>
+                <p>Предварительная оценка: {preview.status}</p>
+                <p>Ставка: {(preview.proposedRate * 100).toFixed(2)}% годовых</p>
+                <p>Недельный платёж: {formatCurrency(preview.proposedWeeklyPayment)}</p>
+                <p>DSCR: {preview.calculatedDSCR.toFixed(2)}</p>
+                <p>Долг / выручка: {preview.calculatedDebtLoad.toFixed(2)}</p>
+                <p>Runway: {preview.calculatedCashRunway.toFixed(1)} нед.</p>
+                <p>Кредитный рейтинг: {preview.calculatedCreditScore}/100</p>
+                {preview.reasons.length > 0 && <p>Причины: {preview.reasons.join(' ')}</p>}
+                {preview.cooldownUntilWeek > week && <p>Повторная заявка доступна с недели {preview.cooldownUntilWeek}.</p>}
+                {preview.alternativeOffer && <p>Альтернатива: {formatCurrency(preview.alternativeOffer.amount)} на {preview.alternativeOffer.termWeeks} недель, платёж {formatCurrency(preview.alternativeOffer.weeklyPayment)}.</p>}
               </div>
             )}
             <button type="button" className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white" onClick={() => applyForLoan(bankId, loanType, amount, term)}>
               Подать заявку
             </button>
-            {lastLoanDecision && <p className={lastLoanDecision.approved ? 'text-green-700' : 'text-red-700'}>{lastLoanDecision.message}</p>}
+            {lastLoanDecision && <div className={lastLoanDecision.approved ? 'text-green-700' : 'text-red-700'}><p>{lastLoanDecision.message}</p>{lastLoanDecision.application?.alternativeOffer && <button type="button" className="mt-2 rounded-md bg-emerald-600 px-3 py-1 text-white" onClick={acceptAlternativeLoan}>Принять альтернативу</button>}</div>}
           </div>
         </div>
       </div>
@@ -126,6 +130,21 @@ export function BanksPanel() {
               {player.activeLoans.length === 0 && <tr><td className="px-3 py-3 text-slate-500" colSpan={7}>Кредитов пока нет.</td></tr>}
             </tbody>
           </table>
+        </div>
+      </div>
+
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="text-lg font-semibold">История заявок</h2>
+        <div className="mt-3 space-y-2 text-sm">
+          {player.loanApplications.map((application) => (
+            <div key={application.id} className="rounded-lg bg-slate-50 p-3">
+              <p className="font-medium">Неделя {application.week}: {banks.find((bank) => bank.id === application.bankId)?.name} — {application.status}</p>
+              <p className="text-slate-600">DSCR {application.calculatedDSCR.toFixed(2)} · runway {application.calculatedCashRunway.toFixed(1)} · рейтинг {application.calculatedCreditScore}/100</p>
+              {application.reasons.length > 0 && <p className="text-slate-600">Причины: {application.reasons.join(' ')}</p>}
+            </div>
+          ))}
+          {player.loanApplications.length === 0 && <p className="text-slate-500">Заявок пока нет.</p>}
         </div>
       </div>
     </section>
